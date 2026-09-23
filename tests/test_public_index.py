@@ -23,11 +23,10 @@ def test_public_index_shows_all_current_physical_layers():
         assert required in text
 
 
-def test_public_index_marks_cyclone_current_and_exposure_next():
+def test_public_index_marks_exposure_current_and_surface_water_next():
     text = (ROOT / "index.html").read_text(encoding="utf-8")
-    assert "Observed flood pipeline" in text
-    assert "Water stress &amp; drought pipeline" in text
     assert "Cyclone context pipeline" in text
-    assert "NOAA IBTrACS" in text
-    assert "Exposure &amp; Built Environment Context" in text
+    assert "Exposure context pipeline" in text
+    assert "WorldPop + GHSL" in text
+    assert "Surface Water &amp; Land Context" in text
     assert "Next build" in text
