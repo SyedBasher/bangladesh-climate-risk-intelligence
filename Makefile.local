@@ -63,5 +63,24 @@ osm-routes:
 route-flood:
 	python scripts/run_route_flood_exposure_local.py --return-period 100
 
+gfm-event:
+	@test -n "$(START)" && test -n "$(END)" || (echo "Usage: make -f Makefile.local gfm-event START=2025-07-15T00:00:00Z END=2025-07-20T23:59:59Z" && exit 2)
+	python scripts/run_gfm_event_local.py --start "$(START)" --end "$(END)"
+
+ffwc-stations:
+	@test -n "$(FILE)" && test -n "$(URL)" || (echo "Usage: make -f Makefile.local ffwc-stations FILE=/secure/path/stations.csv URL=https://official-source/..." && exit 2)
+	python scripts/import_ffwc_stations.py --csv "$(FILE)" --source-url "$(URL)"
+
+ffwc-observations:
+	@test -n "$(FILE)" && test -n "$(URL)" || (echo "Usage: make -f Makefile.local ffwc-observations FILE=/secure/path/observations.csv URL=https://official-source/..." && exit 2)
+	python scripts/import_ffwc_observations.py --csv "$(FILE)" --source-url "$(URL)"
+
+ffwc-link:
+	python scripts/link_assets_ffwc.py --top-k 3
+
+ffwc-event:
+	@test -n "$(START)" && test -n "$(END)" || (echo "Usage: make -f Makefile.local ffwc-event START=2025-07-15T00:00:00+06:00 END=2025-07-20T23:59:59+06:00" && exit 2)
+	python scripts/run_ffwc_event_context_local.py --start "$(START)" --end "$(END)"
+
 local-test:
-	pytest -q tests/test_local_store.py tests/test_local_assets.py tests/test_era5_local.py tests/test_jrc_flood.py tests/test_jrc_local.py tests/test_jrc_lineage.py tests/test_chirps.py tests/test_chirps_local.py tests/test_dem_context.py tests/test_copdem_local.py tests/test_copdem_lineage.py tests/test_osm_local.py tests/test_logistics.py tests/test_logistics_directed.py tests/test_route_flood_local.py tests/test_public_boundary.py
+	pytest -q tests/test_local_store.py tests/test_local_assets.py tests/test_era5_local.py tests/test_jrc_flood.py tests/test_jrc_local.py tests/test_jrc_lineage.py tests/test_chirps.py tests/test_chirps_local.py tests/test_dem_context.py tests/test_copdem_local.py tests/test_copdem_lineage.py tests/test_osm_local.py tests/test_logistics.py tests/test_logistics_directed.py tests/test_route_flood_local.py tests/test_gfm_local.py tests/test_ffwc_local.py tests/test_public_boundary.py
