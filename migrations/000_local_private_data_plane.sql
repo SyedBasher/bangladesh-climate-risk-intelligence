@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS asset_indicator_source (
     asset_indicator_id INTEGER NOT NULL REFERENCES asset_indicator(asset_indicator_id) ON DELETE CASCADE,
     source_artifact_id TEXT NOT NULL REFERENCES source_artifact(source_artifact_id),
     source_role TEXT NOT NULL CHECK(source_role IN (
-        'PRIMARY','DEPTH','PERMANENT_WATER_MASK','SPURIOUS_DEPTH_MASK','TILE_EXTENTS','TARGET_SERIES','BASELINE_SERIES','AUXILIARY'
+        'PRIMARY','DEPTH','PERMANENT_WATER_MASK','SPURIOUS_DEPTH_MASK','TILE_EXTENTS','TARGET_SERIES','BASELINE_SERIES','SOURCE_PACKAGE','DEM_RASTER','AUXILIARY'
     )),
     PRIMARY KEY (asset_indicator_id, source_artifact_id, source_role)
 );
