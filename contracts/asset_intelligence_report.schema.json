@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Asset Intelligence Report",
+  "type": "object",
+  "required": ["report_type", "schema_version", "asset", "direct_evidence", "analytical_findings", "evidence_panel", "what_data_would_change_the_answer", "guardrails"],
+  "properties": {
+    "report_type": {"const": "ASSET_INTELLIGENCE"},
+    "schema_version": {"type": "string"},
+    "asset": {
+      "type": "object",
+      "required": ["external_id"],
+      "properties": {
+        "external_id": {"type": ["string", "null"]},
+        "asset_type": {"type": ["string", "null"]},
+        "sector": {"type": ["string", "null"]},
+        "site_identity_grade": {"type": ["string", "null"]},
+        "coordinate_status": {"type": ["string", "null"]}
+      }
+    },
+    "direct_evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["indicator_id", "value_class", "measurement_basis", "source_id", "source_vintage", "quality_flag"],
+        "properties": {
+          "indicator_id": {"type": "string"},
+          "label": {"type": "string"},
+          "value": {"type": ["number", "string", "boolean", "null"]},
+          "unit": {"type": ["string", "null"]},
+          "value_class": {"type": "string"},
+          "measurement_basis": {"type": "string"},
+          "source_id": {"type": "string"},
+          "source_vintage": {"type": "string"},
+          "quality_flag": {"type": "string"},
+          "null_reason": {"type": ["string", "null"]},
+          "period_start": {"type": ["string", "null"]},
+          "period_end": {"type": ["string", "null"]},
+          "method_version": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "analytical_findings": {"type": "array", "items": {"type": "object"}},
+    "evidence_panel": {"type": "array", "items": {"type": "object"}},
+    "what_data_would_change_the_answer": {"type": "array", "items": {"type": "string"}},
+    "guardrails": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}
