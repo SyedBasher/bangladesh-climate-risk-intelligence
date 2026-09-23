@@ -219,7 +219,7 @@ CREATE TABLE IF NOT EXISTS hydro_observation (
     danger_level_m REAL,
     source_artifact_id TEXT REFERENCES source_artifact(source_artifact_id),
     quality_flag TEXT NOT NULL DEFAULT 'OFFICIAL_SOURCE',
-    UNIQUE(provider,station_id,observed_at,source_artifact_id)
+    UNIQUE(provider,station_id,observed_at)
 );
 
 CREATE INDEX IF NOT EXISTS hydro_observation_station_time_idx
