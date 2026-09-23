@@ -6,3 +6,5 @@ netCDF4>=1.7
 rasterio>=1.4
 shapely>=2.0
 requests>=2.32
+osmium>=4.0
+scipy>=1.14
