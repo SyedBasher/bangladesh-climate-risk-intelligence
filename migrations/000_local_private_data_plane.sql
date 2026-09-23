@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS asset_indicator_source (
     asset_indicator_id INTEGER NOT NULL REFERENCES asset_indicator(asset_indicator_id) ON DELETE CASCADE,
     source_artifact_id TEXT NOT NULL REFERENCES source_artifact(source_artifact_id),
     source_role TEXT NOT NULL CHECK(source_role IN (
-        'PRIMARY','DEPTH','PERMANENT_WATER_MASK','SPURIOUS_DEPTH_MASK','TILE_EXTENTS','TARGET_SERIES','BASELINE_SERIES','SOURCE_PACKAGE','DEM_RASTER','AUXILIARY'
+        'PRIMARY','DEPTH','PERMANENT_WATER_MASK','SPURIOUS_DEPTH_MASK','TILE_EXTENTS','TARGET_SERIES','BASELINE_SERIES','SOURCE_PACKAGE','DEM_RASTER','GFM_EVENT_SERIES','FFWC_WATER_LEVEL','AUXILIARY'
     )),
     PRIMARY KEY (asset_indicator_id, source_artifact_id, source_role)
 );
@@ -194,4 +194,43 @@ CREATE TABLE IF NOT EXISTS logistics_route_analysis_source (
         'OSM_PBF','JRC_DEPTH','JRC_PERMANENT_WATER_MASK','JRC_SPURIOUS_DEPTH_MASK','JRC_TILE_EXTENTS','AUXILIARY'
     )),
     PRIMARY KEY(route_analysis_id, source_artifact_id, source_role)
+);
+
+
+CREATE TABLE IF NOT EXISTS hydro_station (
+    station_id TEXT PRIMARY KEY,
+    provider TEXT NOT NULL,
+    station_name TEXT NOT NULL,
+    river_name TEXT,
+    latitude REAL NOT NULL CHECK(latitude BETWEEN -90 AND 90),
+    longitude REAL NOT NULL CHECK(longitude BETWEEN -180 AND 180),
+    danger_level_m REAL,
+    source_artifact_id TEXT REFERENCES source_artifact(source_artifact_id),
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS hydro_observation (
+    hydro_observation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider TEXT NOT NULL,
+    station_id TEXT NOT NULL REFERENCES hydro_station(station_id),
+    observed_at TEXT NOT NULL,
+    water_level_m REAL NOT NULL,
+    danger_level_m REAL,
+    source_artifact_id TEXT REFERENCES source_artifact(source_artifact_id),
+    quality_flag TEXT NOT NULL DEFAULT 'OFFICIAL_SOURCE',
+    UNIQUE(provider,station_id,observed_at,source_artifact_id)
+);
+
+CREATE INDEX IF NOT EXISTS hydro_observation_station_time_idx
+    ON hydro_observation(station_id,observed_at);
+
+CREATE TABLE IF NOT EXISTS asset_hydro_station_link (
+    asset_location_id TEXT NOT NULL REFERENCES asset_location(asset_location_id),
+    station_id TEXT NOT NULL REFERENCES hydro_station(station_id),
+    distance_km REAL NOT NULL CHECK(distance_km >= 0),
+    rank_order INTEGER NOT NULL CHECK(rank_order >= 1),
+    method_version TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY(asset_location_id,station_id,method_version)
 );
