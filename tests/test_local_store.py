@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from clr.local_store import (
@@ -52,6 +53,32 @@ def test_register_source_file_uses_relative_path_and_hash(tmp_path):
         ).fetchone()
         assert dbrow["local_path"] == row["local_path"]
         assert dbrow["sha256"] == row["sha256"]
+
+
+def test_request_parameters_are_preserved_in_manifest(tmp_path):
+    root = tmp_path / "private_data"
+    initialize_workspace(root, schema_path())
+    source = root / "raw" / "era5_land" / "request.zip"
+    source.write_bytes(b"synthetic archive")
+    request = {
+        "dataset": "derived-era5-land-daily-statistics",
+        "year": "2025",
+        "daily_statistic": "daily_maximum",
+        "time_zone": "utc+06:00",
+    }
+
+    row = register_source_file(
+        root,
+        source_id="ERA5L_DAILY_MAX",
+        provider="Copernicus CDS",
+        artifact_path=source,
+        retrieved_at="2026-09-23T00:00:00+00:00",
+        request_parameters=request,
+    )
+    manifest = json.loads(
+        (root / row["request_manifest_path"]).read_text(encoding="utf-8")
+    )
+    assert manifest["request_parameters"] == request
 
 
 def test_source_registration_is_idempotent_for_same_bytes(tmp_path):
