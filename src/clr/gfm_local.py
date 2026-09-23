@@ -333,13 +333,13 @@ def attach_jrc_event_relation(
     return_period:int=100,
 )->pd.DataFrame:
     out=summary.copy()
-    depths=[]; source_ids=[]; relations=[]
+    depths=[]; source_ids=[]; jrc_lineages=[]; relations=[]
     indicator_id=f"flood_rp{int(return_period)}_depth_m"
     with connect_catalog(root) as conn:
         for row in out.to_dict(orient="records"):
             jrc=conn.execute(
                 """
-                SELECT value_numeric,source_artifact_id,quality_flag,null_reason
+                SELECT asset_indicator_id,value_numeric,source_artifact_id,quality_flag,null_reason
                 FROM asset_indicator
                 WHERE asset_location_id=? AND indicator_id=?
                 ORDER BY calculated_at DESC,asset_indicator_id DESC
@@ -348,8 +348,31 @@ def attach_jrc_event_relation(
                 (row["asset_location_id"],indicator_id),
             ).fetchone()
             depth=None if not jrc or jrc["value_numeric"] is None else float(jrc["value_numeric"])
+            lineage=[]
+            if jrc:
+                lineage=[
+                    {
+                        "source_artifact_id":x["source_artifact_id"],
+                        "source_role":x["source_role"],
+                    }
+                    for x in conn.execute(
+                        """
+                        SELECT source_artifact_id,source_role
+                        FROM asset_indicator_source
+                        WHERE asset_indicator_id=?
+                        ORDER BY source_role,source_artifact_id
+                        """,
+                        (jrc["asset_indicator_id"],),
+                    ).fetchall()
+                ]
+                if not lineage and jrc["source_artifact_id"]:
+                    lineage=[{
+                        "source_artifact_id":jrc["source_artifact_id"],
+                        "source_role":"PRIMARY",
+                    }]
             depths.append(depth)
             source_ids.append(None if not jrc else jrc["source_artifact_id"])
+            jrc_lineages.append(json.dumps(lineage,sort_keys=True))
             relations.append(evidence_relation(
                 depth,
                 int(row["gfm_eligible_acquisition_count"]),
@@ -357,6 +380,7 @@ def attach_jrc_event_relation(
             ))
     out[f"jrc_rp{return_period}_depth_m"]=depths
     out["jrc_source_artifact_id"]=source_ids
+    out["jrc_lineage_json"]=jrc_lineages
     out["jrc_gfm_evidence_relation"]=relations
     return out
 
@@ -398,13 +422,18 @@ def insert_event_relation_indicators(
                 ) VALUES(?,?,?)
                 """,(cur.lastrowid,gfm_source_artifact_id,"GFM_EVENT_SERIES")
             )
-            if row.get("jrc_source_artifact_id"):
+            for lineage in json.loads(row.get("jrc_lineage_json") or "[]"):
                 conn.execute(
                     """
                     INSERT OR IGNORE INTO asset_indicator_source(
                         asset_indicator_id,source_artifact_id,source_role
                     ) VALUES(?,?,?)
-                    """,(cur.lastrowid,row["jrc_source_artifact_id"],"PRIMARY")
+                    """,
+                    (
+                        cur.lastrowid,
+                        lineage["source_artifact_id"],
+                        lineage["source_role"],
+                    ),
                 )
             n+=1
         conn.commit()
