@@ -1,0 +1,11 @@
+private-init:
+	python scripts/init_private_workspace.py
+
+private-backup:
+	python scripts/backup_private_catalog.py
+
+boundary-check:
+	python scripts/check_public_boundary.py
+
+local-test:
+	pytest -q tests/test_local_store.py tests/test_public_boundary.py
