@@ -63,6 +63,22 @@ osm-routes:
 route-flood:
 	python scripts/run_route_flood_exposure_local.py --return-period 100
 
+drought-spi:
+	@test -n "$(YEAR)" || (echo "Usage: make -f Makefile.local drought-spi YEAR=2025" && exit 2)
+	python scripts/run_chirps_spi_local.py --year "$(YEAR)"
+
+soil-plan:
+	@test -n "$(YEAR)" || (echo "Usage: make -f Makefile.local soil-plan YEAR=2025" && exit 2)
+	python scripts/plan_era5_soil_moisture_local.py --year "$(YEAR)"
+
+soil-run:
+	@test -n "$(YEAR)" || (echo "Usage: make -f Makefile.local soil-run YEAR=2025" && exit 2)
+	python scripts/run_era5_soil_moisture_local.py --year "$(YEAR)"
+
+aqueduct-run:
+	@test -n "$(FILE)" && test -n "$(URL)" || (echo "Usage: make -f Makefile.local aqueduct-run FILE=/secure/path/aqueduct.zip URL=https://official-source/... [LAYER=layer_name]" && exit 2)
+	python scripts/run_aqueduct4_baseline_local.py --file "$(FILE)" --source-url "$(URL)" $(if $(LAYER),--layer "$(LAYER)",)
+
 gfm-event:
 	@test -n "$(START)" && test -n "$(END)" || (echo "Usage: make -f Makefile.local gfm-event START=2025-07-15T00:00:00Z END=2025-07-20T23:59:59Z" && exit 2)
 	python scripts/run_gfm_event_local.py --start "$(START)" --end "$(END)"
@@ -83,4 +99,4 @@ ffwc-event:
 	python scripts/run_ffwc_event_context_local.py --start "$(START)" --end "$(END)"
 
 local-test:
-	pytest -q tests/test_local_store.py tests/test_local_assets.py tests/test_era5_local.py tests/test_jrc_flood.py tests/test_jrc_local.py tests/test_jrc_lineage.py tests/test_chirps.py tests/test_chirps_local.py tests/test_dem_context.py tests/test_copdem_local.py tests/test_copdem_lineage.py tests/test_osm_local.py tests/test_logistics.py tests/test_logistics_directed.py tests/test_route_flood_local.py tests/test_gfm_local.py tests/test_ffwc_local.py tests/test_public_boundary.py
+	pytest -q tests/test_local_store.py tests/test_local_assets.py tests/test_era5_local.py tests/test_jrc_flood.py tests/test_jrc_local.py tests/test_jrc_lineage.py tests/test_chirps.py tests/test_chirps_local.py tests/test_dem_context.py tests/test_copdem_local.py tests/test_copdem_lineage.py tests/test_osm_local.py tests/test_logistics.py tests/test_logistics_directed.py tests/test_route_flood_local.py tests/test_gfm_local.py tests/test_ffwc_local.py tests/test_drought.py tests/test_era5_soil_moisture_local.py tests/test_aqueduct_local.py tests/test_public_boundary.py
