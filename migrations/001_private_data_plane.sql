@@ -147,6 +147,42 @@ create table if not exists clr_private.asset_indicator_source (
 create index if not exists asset_indicator_source_artifact_idx
     on clr_private.asset_indicator_source(source_artifact_id, source_role);
 
+
+create table if not exists clr_private.logistics_route_analysis (
+    route_analysis_id uuid primary key default gen_random_uuid(),
+    tenant_id uuid not null references clr_private.tenant(tenant_id),
+    asset_route_dependency_id uuid not null references clr_private.asset_route_dependency(asset_route_dependency_id),
+    run_id uuid references clr_private.processing_run(run_id),
+    scenario_id text not null default 'BASELINE',
+    origin_node_id bigint,
+    destination_node_id bigint,
+    origin_snap_distance_m double precision check(origin_snap_distance_m is null or origin_snap_distance_m >= 0),
+    destination_snap_distance_m double precision check(destination_snap_distance_m is null or destination_snap_distance_m >= 0),
+    baseline_length_m double precision check(baseline_length_m is null or baseline_length_m >= 0),
+    hazard_exposed_length_m double precision check(hazard_exposed_length_m is null or hazard_exposed_length_m >= 0),
+    hazard_exposed_share double precision check(hazard_exposed_share is null or (hazard_exposed_share >= 0 and hazard_exposed_share <= 1)),
+    hazard_avoiding_length_m double precision check(hazard_avoiding_length_m is null or hazard_avoiding_length_m >= 0),
+    hazard_detour_ratio double precision check(hazard_detour_ratio is null or hazard_detour_ratio >= 0),
+    isolation_flag boolean,
+    edge_disjoint_route_count integer,
+    edge_disjoint_route_count_after_hazard integer,
+    route_redundancy_loss integer,
+    quality_flag text not null default 'OK',
+    created_at timestamptz not null default now()
+);
+
+create index if not exists logistics_route_analysis_dependency_idx
+    on clr_private.logistics_route_analysis(tenant_id, asset_route_dependency_id, scenario_id);
+
+create table if not exists clr_private.logistics_route_analysis_source (
+    route_analysis_id uuid not null references clr_private.logistics_route_analysis(route_analysis_id) on delete cascade,
+    source_artifact_id uuid not null references clr_private.source_artifact(source_artifact_id),
+    source_role text not null check(source_role in (
+        'OSM_PBF','JRC_DEPTH','JRC_PERMANENT_WATER_MASK','JRC_SPURIOUS_DEPTH_MASK','JRC_TILE_EXTENTS','AUXILIARY'
+    )),
+    primary key(route_analysis_id, source_artifact_id, source_role)
+);
+
 alter table clr_private.tenant enable row level security;
 alter table clr_private.asset_location enable row level security;
 alter table clr_private.source_artifact enable row level security;
@@ -156,6 +192,8 @@ alter table clr_private.asset_indicator_source enable row level security;
 alter table clr_private.portfolio_exposure enable row level security;
 alter table clr_private.route_endpoint enable row level security;
 alter table clr_private.asset_route_dependency enable row level security;
+alter table clr_private.logistics_route_analysis enable row level security;
+alter table clr_private.logistics_route_analysis_source enable row level security;
 
 revoke all on all tables in schema clr_private from public, anon, authenticated;
 grant all on all tables in schema clr_private to service_role;

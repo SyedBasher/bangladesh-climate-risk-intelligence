@@ -1,0 +1,3 @@
+endpoint_key,endpoint_type,latitude,longitude,source,valid_from,valid_to
+SYNTH_PORT_A,PORT,22.3300,91.8100,SYNTHETIC,,
+SYNTH_DEPOT_A,DEPOT,23.8100,90.4100,SYNTHETIC,,

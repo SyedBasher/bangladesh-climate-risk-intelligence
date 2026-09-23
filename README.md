@@ -75,6 +75,9 @@ See:
 - `src/clr/era5_land.py` — heat metrics from reanalysis
 - `src/clr/geocoding.py` — conservative site matching
 - `src/clr/logistics.py` — route redundancy and hazard-conditioned connectivity
+- `src/clr/osm_local.py` — pinned Geofabrik/OSM road-network ingestion and private endpoint linkage
+- `src/clr/logistics_local.py` — baseline private route analysis and shared bottlenecks
+- `src/clr/route_flood_local.py` — JRC flood exposure overlay for baseline routes
 - `src/clr/intelligence.py` — transparent second-/third-order exposure logic
 - `src/clr/portfolio.py` — bank/insurer portfolio accumulation and concentration
 - `src/clr/live_integration.py` — production source gates and provenance controls

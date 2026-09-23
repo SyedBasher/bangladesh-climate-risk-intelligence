@@ -159,3 +159,39 @@ CREATE TABLE IF NOT EXISTS asset_indicator_source (
 
 CREATE INDEX IF NOT EXISTS asset_indicator_source_artifact_idx
     ON asset_indicator_source(source_artifact_id, source_role);
+
+
+CREATE TABLE IF NOT EXISTS logistics_route_analysis (
+    route_analysis_id TEXT PRIMARY KEY,
+    tenant_key TEXT NOT NULL,
+    asset_route_dependency_id TEXT NOT NULL REFERENCES asset_route_dependency(asset_route_dependency_id),
+    run_id TEXT REFERENCES processing_run(run_id),
+    scenario_id TEXT NOT NULL DEFAULT 'BASELINE',
+    origin_node_id INTEGER,
+    destination_node_id INTEGER,
+    origin_snap_distance_m REAL CHECK(origin_snap_distance_m IS NULL OR origin_snap_distance_m >= 0),
+    destination_snap_distance_m REAL CHECK(destination_snap_distance_m IS NULL OR destination_snap_distance_m >= 0),
+    baseline_length_m REAL CHECK(baseline_length_m IS NULL OR baseline_length_m >= 0),
+    hazard_exposed_length_m REAL CHECK(hazard_exposed_length_m IS NULL OR hazard_exposed_length_m >= 0),
+    hazard_exposed_share REAL CHECK(hazard_exposed_share IS NULL OR (hazard_exposed_share >= 0 AND hazard_exposed_share <= 1)),
+    hazard_avoiding_length_m REAL CHECK(hazard_avoiding_length_m IS NULL OR hazard_avoiding_length_m >= 0),
+    hazard_detour_ratio REAL CHECK(hazard_detour_ratio IS NULL OR hazard_detour_ratio >= 0),
+    isolation_flag INTEGER CHECK(isolation_flag IS NULL OR isolation_flag IN (0,1)),
+    edge_disjoint_route_count INTEGER CHECK(edge_disjoint_route_count IS NULL OR edge_disjoint_route_count >= 0),
+    edge_disjoint_route_count_after_hazard INTEGER CHECK(edge_disjoint_route_count_after_hazard IS NULL OR edge_disjoint_route_count_after_hazard >= 0),
+    route_redundancy_loss INTEGER,
+    quality_flag TEXT NOT NULL DEFAULT 'OK',
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS logistics_route_analysis_dependency_idx
+    ON logistics_route_analysis(tenant_key, asset_route_dependency_id, scenario_id);
+
+CREATE TABLE IF NOT EXISTS logistics_route_analysis_source (
+    route_analysis_id TEXT NOT NULL REFERENCES logistics_route_analysis(route_analysis_id) ON DELETE CASCADE,
+    source_artifact_id TEXT NOT NULL REFERENCES source_artifact(source_artifact_id),
+    source_role TEXT NOT NULL CHECK(source_role IN (
+        'OSM_PBF','JRC_DEPTH','JRC_PERMANENT_WATER_MASK','JRC_SPURIOUS_DEPTH_MASK','JRC_TILE_EXTENTS','AUXILIARY'
+    )),
+    PRIMARY KEY(route_analysis_id, source_artifact_id, source_role)
+);
