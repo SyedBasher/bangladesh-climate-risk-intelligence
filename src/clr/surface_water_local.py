@@ -346,9 +346,11 @@ def build_surface_water_context(
             "occurrence_source_artifact_id":occurrence_record["source_artifact_id"],
             "recurrence_source_artifact_id":recurrence_record["source_artifact_id"],
             "distance_occurrence_source_artifact_ids":sorted(set(lineage)),
-            "point_quality_flag":(
-                "OK" if occurrence is not None and recurrence is not None
-                else "SOURCE_NODATA_AT_ASSET"
+            "occurrence_quality_flag":(
+                "OK" if occurrence is not None else "SOURCE_NODATA_AT_ASSET"
+            ),
+            "recurrence_quality_flag":(
+                "OK" if recurrence is not None else "SOURCE_NODATA_AT_ASSET"
             ),
             "distance_quality_flag":(
                 "OK" if distance_m is not None
@@ -393,11 +395,23 @@ def insert_surface_water_indicators(
     count=0
     with connect_catalog(root) as conn:
         for row in frame.to_dict(orient="records"):
+            threshold=float(row["high_occurrence_threshold_pct"])
+            search_radius=float(row["distance_search_radius_km"])
+            threshold_token=(
+                str(int(threshold))
+                if threshold.is_integer()
+                else str(threshold).replace(".","p")
+            )
+            radius_token=(
+                str(int(search_radius))
+                if search_radius.is_integer()
+                else str(search_radius).replace(".","p")
+            )
             specs=[
                 (
                     "jrc_gsw15_occurrence_pct_at_site",
                     row["occurrence_pct_at_site"],"percent","SOURCE",
-                    row["point_quality_flag"],"JRC_GSW_OCCURRENCE",
+                    row["occurrence_quality_flag"],"JRC_GSW_OCCURRENCE",
                     [row["occurrence_source_artifact_id"]],
                     row["occurrence_source_artifact_id"],
                     "GSW15_POINT_0.1",
@@ -405,18 +419,18 @@ def insert_surface_water_indicators(
                 (
                     "jrc_gsw15_recurrence_pct_at_site",
                     row["recurrence_pct_at_site"],"percent","SOURCE",
-                    row["point_quality_flag"],"JRC_GSW_RECURRENCE",
+                    row["recurrence_quality_flag"],"JRC_GSW_RECURRENCE",
                     [row["recurrence_source_artifact_id"]],
                     row["recurrence_source_artifact_id"],
                     "GSW15_POINT_0.1",
                 ),
                 (
-                    "jrc_gsw15_distance_to_occurrence_ge90pct_water_m",
+                    f"jrc_gsw15_distance_to_occurrence_ge{threshold_token}pct_water_m",
                     row["distance_to_high_occurrence_water_m"],"m","CALCULATED",
                     row["distance_quality_flag"],"JRC_GSW_OCCURRENCE",
                     row["distance_occurrence_source_artifact_ids"],
                     row["occurrence_source_artifact_id"],
-                    "GSW15_DISTANCE_OCC_GE90_20KM_0.1",
+                    f"GSW15_DISTANCE_OCC_GE{threshold_token}_{radius_token}KM_0.1",
                 ),
             ]
             for (
