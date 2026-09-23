@@ -1,0 +1,2 @@
+station_id,station_name,river_name,latitude,longitude,danger_level_m
+SYNTH_ST01,Synthetic River Station,Synthetic River,24.1000,90.5000,6.50
