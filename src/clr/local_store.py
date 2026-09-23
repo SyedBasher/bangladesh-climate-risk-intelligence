@@ -184,6 +184,7 @@ def register_source_file(
     valid_time_end: str | None = None,
     retrieval_status: str = "COMPLETE",
     note: str | None = None,
+    request_parameters: Mapping | None = None,
 ) -> dict:
     if retrieval_status not in {"COMPLETE", "PARTIAL", "FAILED", "BLOCKED"}:
         raise ValueError("Unsupported retrieval status")
@@ -222,6 +223,7 @@ def register_source_file(
             "valid_time_end": valid_time_end,
             "retrieval_status": retrieval_status,
             "note": note,
+            "request_parameters": dict(request_parameters or {}),
         }
         manifest_path, manifest_sha = write_source_manifest(root, record)
         record["request_manifest_path"] = manifest_path.relative_to(root).as_posix()
