@@ -237,7 +237,7 @@ def insert_aqueduct_indicators(
                 null_reason=None if value is not None else (
                     row.get("null_reason") or "SOURCE_VALUE_MISSING"
                 )
-                conn.execute(
+                cur=conn.execute(
                     """
                     INSERT INTO asset_indicator(
                         tenant_key,asset_location_id,indicator_id,value_numeric,value_text,
@@ -254,6 +254,14 @@ def insert_aqueduct_indicators(
                         "SOURCE_CONTEXT" if matched else row["match_status"],
                         null_reason,run_id,utc_now(),
                     ),
+                )
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO asset_indicator_source(
+                        asset_indicator_id,source_artifact_id,source_role
+                    ) VALUES(?,?,?)
+                    """,
+                    (cur.lastrowid,row["source_artifact_id"],"PRIMARY"),
                 )
                 count+=1
         conn.commit()
