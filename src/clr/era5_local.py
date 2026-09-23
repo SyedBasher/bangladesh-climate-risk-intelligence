@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 import hashlib
 import json
 import shutil
@@ -12,13 +13,11 @@ import pandas as pd
 
 from .local_store import (
     connect_catalog,
-    finish_processing_run,
     parquet_partition_dir,
     register_parquet_dataset,
     register_source_file,
     sha256_file,
     source_snapshot_path,
-    start_processing_run,
     utc_now,
 )
 
@@ -39,10 +38,10 @@ def area_from_assets(assets: list[dict], pad_deg: float = 0.1) -> list[float]:
     lats = [float(x["latitude"]) for x in assets]
     lons = [float(x["longitude"]) for x in assets]
     return [
-        min(90.0, max(lats) + pad_deg),
-        max(-180.0, min(lons) - pad_deg),
-        max(-90.0, min(lats) - pad_deg),
-        min(180.0, max(lons) + pad_deg),
+        round(min(90.0, max(lats) + pad_deg), 6),
+        round(max(-180.0, min(lons) - pad_deg), 6),
+        round(max(-90.0, min(lats) - pad_deg), 6),
+        round(min(180.0, max(lons) + pad_deg), 6),
     ]
 
 
@@ -249,12 +248,31 @@ def extract_daily_temperature_zip(
     ).sort_values(["asset_location_id", "date"]).reset_index(drop=True)
 
 
+def _validate_complete_year(frame: pd.DataFrame, asset_id: str, year: int, label: str) -> None:
+    target = frame[
+        (frame["asset_location_id"] == asset_id)
+        & (pd.to_datetime(frame["date"]).dt.year == int(year))
+    ]
+    unique_days = pd.to_datetime(target["date"]).dt.date.nunique()
+    expected = 366 if calendar.isleap(int(year)) else 365
+    if unique_days != expected:
+        raise ValueError(
+            f"Incomplete {label} coverage for asset {asset_id}: "
+            f"{unique_days} unique days, expected {expected}"
+        )
+
+
 def annual_heat_indicators_from_daily(
     daily_max: pd.DataFrame,
     daily_min: pd.DataFrame,
     year: int,
+    *,
+    require_complete_year: bool = True,
 ) -> pd.DataFrame:
-    required = {"asset_location_id", "tenant_key", "external_id", "date", "temp_c", "source_artifact_id"}
+    required = {
+        "asset_location_id", "tenant_key", "external_id",
+        "date", "temp_c", "source_artifact_id",
+    }
     if not required.issubset(daily_max.columns) or not required.issubset(daily_min.columns):
         raise ValueError("Daily frames missing required columns")
 
@@ -263,10 +281,18 @@ def annual_heat_indicators_from_daily(
         y = daily_min[daily_min["asset_location_id"] == asset_id]
         if y.empty:
             raise ValueError(f"Missing daily-min data for asset {asset_id}")
+
+        if require_complete_year:
+            _validate_complete_year(daily_max, asset_id, year, "daily-maximum")
+            _validate_complete_year(daily_min, asset_id, year, "daily-minimum")
+
         x = x[pd.to_datetime(x["date"]).dt.year == int(year)]
         y = y[pd.to_datetime(y["date"]).dt.year == int(year)]
         if x.empty or y.empty:
             raise ValueError(f"No target-year data for asset {asset_id}")
+
+        if set(x["date"]) != set(y["date"]):
+            raise ValueError(f"Daily max/min date coverage differs for asset {asset_id}")
 
         base = x.iloc[0]
         max_source = str(x["source_artifact_id"].iloc[0])
@@ -290,7 +316,7 @@ def annual_heat_indicators_from_daily(
                 "method_version": "ERA5_HEAT_0.1",
                 "period_start": f"{year}-01-01T00:00:00+06:00",
                 "period_end": f"{year}-12-31T23:59:59+06:00",
-                "quality_flag": "OK",
+                "quality_flag": "COMPLETE_YEAR" if require_complete_year else "PARTIAL_TEST",
             })
     return pd.DataFrame(rows)
 
