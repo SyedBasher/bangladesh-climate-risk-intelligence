@@ -134,11 +134,25 @@ create table if not exists clr_private.asset_route_dependency (
     valid_to timestamptz
 );
 
+
+create table if not exists clr_private.asset_indicator_source (
+    asset_indicator_id bigint not null references clr_private.asset_indicator(asset_indicator_id) on delete cascade,
+    source_artifact_id uuid not null references clr_private.source_artifact(source_artifact_id),
+    source_role text not null check (source_role in (
+        'PRIMARY','DEPTH','PERMANENT_WATER_MASK','SPURIOUS_DEPTH_MASK','TILE_EXTENTS','AUXILIARY'
+    )),
+    primary key (asset_indicator_id, source_artifact_id, source_role)
+);
+
+create index if not exists asset_indicator_source_artifact_idx
+    on clr_private.asset_indicator_source(source_artifact_id, source_role);
+
 alter table clr_private.tenant enable row level security;
 alter table clr_private.asset_location enable row level security;
 alter table clr_private.source_artifact enable row level security;
 alter table clr_private.processing_run enable row level security;
 alter table clr_private.asset_indicator enable row level security;
+alter table clr_private.asset_indicator_source enable row level security;
 alter table clr_private.portfolio_exposure enable row level security;
 alter table clr_private.route_endpoint enable row level security;
 alter table clr_private.asset_route_dependency enable row level security;

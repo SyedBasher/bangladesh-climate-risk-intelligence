@@ -19,5 +19,11 @@ era5-run:
 	@test -n "$(YEAR)" || (echo "Usage: make -f Makefile.local era5-run YEAR=2025" && exit 2)
 	python scripts/run_era5_local.py --year "$(YEAR)"
 
+jrc-plan:
+	python scripts/plan_jrc_flood_local.py
+
+jrc-run:
+	python scripts/run_jrc_flood_local.py
+
 local-test:
-	pytest -q tests/test_local_store.py tests/test_local_assets.py tests/test_era5_local.py tests/test_public_boundary.py
+	pytest -q tests/test_local_store.py tests/test_local_assets.py tests/test_era5_local.py tests/test_jrc_flood.py tests/test_jrc_local.py tests/test_jrc_lineage.py tests/test_public_boundary.py

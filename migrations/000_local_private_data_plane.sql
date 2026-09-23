@@ -147,3 +147,15 @@ CREATE TABLE IF NOT EXISTS parquet_dataset (
     run_id TEXT REFERENCES processing_run(run_id),
     UNIQUE(dataset_name, relative_path)
 );
+
+CREATE TABLE IF NOT EXISTS asset_indicator_source (
+    asset_indicator_id INTEGER NOT NULL REFERENCES asset_indicator(asset_indicator_id) ON DELETE CASCADE,
+    source_artifact_id TEXT NOT NULL REFERENCES source_artifact(source_artifact_id),
+    source_role TEXT NOT NULL CHECK(source_role IN (
+        'PRIMARY','DEPTH','PERMANENT_WATER_MASK','SPURIOUS_DEPTH_MASK','TILE_EXTENTS','AUXILIARY'
+    )),
+    PRIMARY KEY (asset_indicator_id, source_artifact_id, source_role)
+);
+
+CREATE INDEX IF NOT EXISTS asset_indicator_source_artifact_idx
+    ON asset_indicator_source(source_artifact_id, source_role);
