@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Mangrove Climate Risk Indicator Output",
+  "type": "object",
+  "required": ["external_system","external_id","risk_dataset_version","indicators"],
+  "properties": {
+    "external_system": {"type":"string"},
+    "external_id": {"type":"string"},
+    "risk_dataset_version": {"type":"string"},
+    "spatial_match_status": {"type":"string","enum":["MATCHED","AMBIGUOUS","NO_MATCH","REJECTED"]},
+    "indicators": {
+      "type":"array",
+      "items": {
+        "type":"object",
+        "required":["indicator_id","value_class","measurement_basis","source_vintage_id"],
+        "properties": {
+          "indicator_id":{"type":"string"},
+          "value":{"type":["number","string","null"]},
+          "unit":{"type":["string","null"]},
+          "value_class":{"type":"string","enum":["SOURCE","CALCULATED"]},
+          "measurement_basis":{"type":"string"},
+          "source_vintage_id":{"type":["integer","null"]},
+          "method_version":{"type":["string","null"]},
+          "quality_flag":{"type":["string","null"]},
+          "null_reason":{"type":["string","null"]}
+        }
+      }
+    }
+  }
+}

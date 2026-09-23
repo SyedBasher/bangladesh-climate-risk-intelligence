@@ -1,0 +1,16 @@
+indicator_id,domain,unit,definition,guardrail
+ead_in_rp10_footprint,BANK_EXPOSURE,currency,Sum EAD linked to assets with RP10 depth > 0,Direct footprint exposure; not expected loss.
+ead_in_rp50_footprint,BANK_EXPOSURE,currency,Sum EAD linked to assets with RP50 depth > 0,Direct footprint exposure; not expected loss.
+ead_in_rp100_footprint,BANK_EXPOSURE,currency,Sum EAD linked to assets with RP100 depth > 0,Direct footprint exposure; not expected loss.
+ead_share_in_rp100_footprint,BANK_CONCENTRATION,share,RP100-exposed EAD / valid EAD,No PD/LGD interpretation.
+collateral_value_in_rp100_footprint,COLLATERAL_EXPOSURE,currency,Collateral value at assets with RP100 depth > 0,No automatic haircut.
+sum_insured_in_rp100_footprint,INSURANCE_ACCUMULATION,currency,Sum insured at assets with RP100 depth > 0,Not probable maximum loss.
+hazard_exposed_ead_hhi,BANK_CONCENTRATION,index,HHI of exposed EAD across borrowers,Concentration metric only.
+shared_bottleneck_ead,NETWORK_CONCENTRATION,currency,EAD whose asset routes share a hazard-exposed bottleneck,Requires route linkage and explicit endpoint.
+shared_bottleneck_sum_insured,INSURANCE_NETWORK_CONCENTRATION,currency,Sum insured whose routes/assets share a hazard bottleneck,Not claim estimate.
+borrower_site_exposure_share,BORROWER_DIVERSIFICATION,share,Exposed operating sites / valid operating sites for borrower,Site-count weighting unless better weights exist.
+borrower_capacity_exposure_share,BORROWER_DIVERSIFICATION,share,Exposed production capacity / valid production capacity,Only where capacity is source/customer supported.
+operating_collateral_mismatch_flag,CROSS_ASSET_SIGNAL,boolean,Operating site and pledged collateral have materially different hazard exposure,"Review signal, not credit classification."
+ead_by_hazard_cell,PORTFOLIO_ACCUMULATION,currency,EAD aggregated to fixed hazard/geospatial cell,Cell size/vintage must be explicit.
+sum_insured_by_hazard_cell,INSURANCE_ACCUMULATION,currency,Sum insured aggregated to fixed hazard/geospatial cell,Cell size/vintage must be explicit.
+ead_by_common_route_edge,NETWORK_ACCUMULATION,currency,EAD aggregated over shared route edge,Route graph and endpoint must be explicit.

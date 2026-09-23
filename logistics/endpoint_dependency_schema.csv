@@ -1,0 +1,11 @@
+field,meaning,origin,rule
+endpoint_id,Stable endpoint identifier,CALCULATED,Required
+endpoint_type,PORT / ICD / WAREHOUSE / BUYER / SUPPLIER / HIGHWAY_GATEWAY / MARKET / OTHER,SOURCE_OR_CUSTOMER,Required
+name,Source-provided endpoint name,SOURCE_OR_CUSTOMER,Required
+latitude,WGS84 latitude,SOURCE_OR_EXTERNAL,Required for routing
+longitude,WGS84 longitude,SOURCE_OR_EXTERNAL,Required for routing
+source,EPB/customer/logistics source/etc.,SOURCE,Required
+relationship,PRIMARY / SECONDARY / ALTERNATIVE / UNKNOWN,SOURCE_OR_CUSTOMER,Required
+share_of_shipments,Optional share of shipments using endpoint,CUSTOMER,Nullable
+valid_from,Relationship validity start,SOURCE_OR_CUSTOMER,Nullable
+valid_to,Relationship validity end,SOURCE_OR_CUSTOMER,Nullable

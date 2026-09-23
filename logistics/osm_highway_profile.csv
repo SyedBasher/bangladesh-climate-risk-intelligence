@@ -1,0 +1,14 @@
+highway_tag,freight_graph_default,note
+motorway,YES,Strategic road
+trunk,YES,Strategic road
+primary,YES,Major road
+secondary,YES,Important connector
+tertiary,YES,Local connector
+unclassified,YES_WITH_CAUTION,Potential factory access road
+residential,YES_WITH_CAUTION,Potential last-mile access
+service,YES_WITH_CAUTION,Potential industrial/site access
+living_street,NO_DEFAULT,Exclude unless explicitly needed
+track,NO_DEFAULT,Exclude from freight graph unless local evidence supports use
+path,NO,Not a freight route
+footway,NO,Not a freight route
+cycleway,NO,Not a freight route

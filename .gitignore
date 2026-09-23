@@ -1,0 +1,57 @@
+# Private/raw/derived data
+data/
+raw/
+processed/
+private/
+customer_data/
+source_snapshots/
+outputs/
+build/
+cache/
+artifacts/
+
+# Geospatial / database binaries
+*.db
+*.sqlite
+*.sqlite3
+*.duckdb
+*.parquet
+*.feather
+*.pbf
+*.tif
+*.tiff
+*.nc
+*.grib
+*.grib2
+*.zarr
+*.gpkg
+*.shp
+*.shx
+*.dbf
+*.vrt
+*.zip
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials*
+secrets*
+.cdsapirc
+
+# Python/tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.coverage
+htmlcov/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,5 @@
+field,type,meaning,requirement,guardrail
+borrower_id,string,Pseudonymous stable borrower identifier,Required,Do not require borrower name for analytics.
+sector_code,string,Bank sector/industry code,Recommended,Preserve source taxonomy; map separately.
+district_code,string,Borrower administrative code,Optional,"Context/fallback, not a substitute for site coordinates."
+borrower_group_id,string,Economic-group identifier,Optional,Supports connected exposure analysis.

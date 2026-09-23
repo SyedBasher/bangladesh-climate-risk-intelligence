@@ -1,0 +1,9 @@
+rule_id,domain,rule,inputs,guardrail,research_refs
+LEVEL_TREND_HEAT,Heat,Compare current heat level and long-run trend separately,days_tmax_gt_35c + heat_trend_c_decade,No weighted score,R0015
+DAY_NIGHT_HUMID_HEAT,Heat,"Track daytime, warm-night and humidity-adjusted heat separately",TX/TN/apparent-temperature or defensible humid-heat metric,Do not collapse to one heat index,R0015
+WORKER_HEAT_SCALE,Heat,Multiply heat exposure days by workers/shift workers,heat days × worker denominator,"Exposure arithmetic, not productivity loss",R0016;R0017
+FLOOD_OPERATIONAL_SCALE,Flood,"Report workers, machines and annual capacity located at an inundated modelled site",flood depth + site operational scale,No damage/downtime coefficient,R0018
+ROUTE_CRITICALITY,Flood/logistics,Evaluate exposed route segments jointly with alternative routes and network criticality,road graph + flood layer + OD/port dependency,Distance to road is insufficient,R0018;R0023
+WATER_PROCESS_DEPENDENCY,Water,Only activate high water sensitivity when wet processing/tanning/process data confirm it,water stress + process flag + water use/source,Sector label alone is insufficient,R0020;R0021
+COOLING_GRID_COMPOUND,Heat/energy,Flag sites whose heat adaptation depends heavily on powered cooling without adequate backup,heat + cooling scope + backup power + grid data,No outage probability without grid evidence,R0022
+RESEARCH_STATUS_GUARD,All,Every numerical calibration references active research status,research lineage,Retracted/superseded calibration invalidates derived output,R012

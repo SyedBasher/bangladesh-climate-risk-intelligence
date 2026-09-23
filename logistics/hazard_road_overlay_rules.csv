@@ -1,0 +1,7 @@
+hazard_layer,type,overlay_method,decision_rule,guardrail
+JRC_RP10,Raster flood depth,Sample/intersect edge geometry,exposed if valid depth > 0; blocked threshold not assumed,Modelled flood hazard
+JRC_RP50,Raster flood depth,Sample/intersect edge geometry,exposed if valid depth > 0; blocked threshold not assumed,Modelled flood hazard
+JRC_RP100,Raster flood depth,Sample/intersect edge geometry,exposed if valid depth > 0; blocked threshold not assumed,Modelled flood hazard
+GFM_EVENT,Observed flood extent,Spatial intersection for event timestamp,event-exposed if observed flood overlaps edge after exclusions,Observed event exposure
+FFWC_EVENT,Station water level,Hydrologic context only,never block road solely from station level without road/flood linkage,Station context
+EXTREME_RAIN,CHIRPS/ERA5 rain,Context/event trigger,does not imply road inundation on its own,Rainfall hazard

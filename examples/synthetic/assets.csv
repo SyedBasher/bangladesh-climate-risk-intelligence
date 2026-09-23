@@ -1,0 +1,3 @@
+asset_id,asset_type,latitude,longitude,site_identity_grade,coordinate_status
+SYNTH_FACTORY_A,FACTORY,24.0,90.4,EXACT_SITE,RESOLVED
+SYNTH_FACTORY_B,FACTORY,23.9,90.3,EXACT_SITE,RESOLVED

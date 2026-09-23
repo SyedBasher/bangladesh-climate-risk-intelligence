@@ -1,0 +1,5 @@
+field,type,meaning,requirement,guardrail
+loan_id,string,Loan identifier,Required,
+asset_id,string,Linked physical asset,Required,
+link_role,string,OPERATING_EXPOSURE / COLLATERAL_SUPPORT / BOTH / OTHER,Required,
+allocation_share,number,Optional share of loan exposure allocated to asset,Optional,Keep null unless institution can justify allocation.

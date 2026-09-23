@@ -1,0 +1,14 @@
+preflight:
+	python scripts/preflight_live_integration.py
+
+era5:
+	python scripts/run_era5_cds.py
+
+core-check:
+	python scripts/run_live_profile.py --profile factory_core_production
+
+heat-check:
+	python scripts/run_live_profile.py --profile factory_heat_production
+
+road-check:
+	python scripts/run_live_profile.py --profile road_logistics_production
