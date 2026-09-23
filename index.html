@@ -119,6 +119,7 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
         <span class="badge"><span class="dot"></span> Terrain pipeline</span>
         <span class="badge"><span class="dot"></span> Logistics pipeline</span>
         <span class="badge"><span class="dot"></span> Water stress &amp; drought pipeline</span>
+        <span class="badge"><span class="dot"></span> Cyclone context pipeline</span>
       </div>
     </div>
     <aside class="demo-note">
@@ -183,6 +184,12 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
         <div class="desc">Illustrative three-month precipitation anomaly; structural basin water stress remains a separate WRI context.</div>
         <div class="source">CHIRPS v3 · synthetic value</div>
       </article>
+      <article class="metric flood">
+        <div class="kicker">Cyclone context</div>
+        <div class="value">68 km</div>
+        <div class="desc">Illustrative closest historical IBTrACS track-point distance since 1980.</div>
+        <div class="source">NOAA IBTrACS v04r01 · synthetic value</div>
+      </article>
     </div>
   </section>
 
@@ -204,6 +211,7 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
           <li>Observed flood detections and nearby official gauge context</li>
           <li>Rainfall extremes and wet/dry spells</li>
           <li>Meteorological drought, soil-moisture anomaly and basin water stress</li>
+          <li>Historical cyclone-track proximity and storm-center intensity context</li>
           <li>DSM elevation and local surface context</li>
         </ul>
       </article>
@@ -247,14 +255,14 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
     <div class="next-card">
       <div>
         <div class="next-label">Next build</div>
-        <h3>Cyclone &amp; Coastal Event Context</h3>
-        <p>Add historical cyclone-track and intensity context for coastal assets while keeping track proximity separate from site-level wind, surge and damage estimates.</p>
+        <h3>Exposure &amp; Built Environment Context</h3>
+        <p>Add population and built-up context around assets so hazard evidence can be interpreted alongside surrounding settlement intensity and non-residential development without inferring workforce or asset value.</p>
       </div>
       <div class="next-box">
-        <div>IBTrACS track proximity</div>
-        <div>Storm intensity at closest approach</div>
-        <div>Coastal asset/event timelines</div>
-        <div>Site wind and storm surge held for separate models</div>
+        <div>WorldPop population radii</div>
+        <div>GHSL built-up context</div>
+        <div>Non-residential development context</div>
+        <div>No inferred workforce or property value</div>
       </div>
     </div>
   </section>
@@ -288,6 +296,7 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
           <tr><td>Rainfall</td><td>CHIRPS v3 blended product</td><td>Grid-cell rainfall estimate, not a site rain gauge</td></tr>
           <tr><td>Terrain</td><td>Copernicus DEM GLO-30</td><td>Digital Surface Model, not bare-earth elevation</td></tr>
           <tr><td>Drought / water stress</td><td>CHIRPS + ERA5-Land + WRI Aqueduct</td><td>Precipitation and soil-moisture anomalies plus structural basin competition, not factory water shortage</td></tr>
+          <tr><td>Cyclone context</td><td>NOAA IBTrACS</td><td>Historical best-track proximity and storm-center intensity context, not site wind, surge or damage</td></tr>
         </tbody>
       </table>
     </div>
