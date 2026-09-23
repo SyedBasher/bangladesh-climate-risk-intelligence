@@ -137,6 +137,67 @@ def spi_gamma_monthly(
     ]
 
 
+def _fit_spi_month_params(
+    calibration: pd.DataFrame,
+    *,
+    scale: int,
+    baseline_start: int,
+    baseline_end: int,
+) -> dict[int, dict]:
+    cal=_ensure_contiguous_months(calibration)
+    cal["accum_precip_mm"]=cal["precip_mm"].rolling(scale,min_periods=scale).sum()
+    expected=baseline_end-baseline_start+1
+    params={}
+    for month in range(1,13):
+        values=cal[
+            cal["year"].between(baseline_start,baseline_end)
+            & (cal["month"]==month)
+        ]["accum_precip_mm"].dropna().to_numpy(dtype=float)
+        if len(values)!=expected:
+            params[month]={"quality_flag":f"INCOMPLETE_BASELINE_{len(values)}_OF_{expected}"}
+            continue
+        positive=values[values>0]
+        q_zero=float((values==0).sum()/len(values))
+        if len(positive)<MIN_POSITIVE_CALIBRATION_VALUES:
+            params[month]={"quality_flag":"INSUFFICIENT_POSITIVE_BASELINE"}
+            continue
+        if np.allclose(positive,positive[0]):
+            params[month]={"quality_flag":"ZERO_VARIANCE_BASELINE"}
+            continue
+        try:
+            shape,loc,scale_param=gamma_dist.fit(positive,floc=0)
+        except Exception:
+            params[month]={"quality_flag":"GAMMA_FIT_FAILED"}
+            continue
+        params[month]={
+            "quality_flag":"OK",
+            "shape":float(shape),
+            "loc":float(loc),
+            "scale":float(scale_param),
+            "q_zero":q_zero,
+        }
+    return params
+
+
+def _apply_spi_params(value: float, params: dict) -> tuple[float | None, str]:
+    if params.get("quality_flag")!="OK":
+        return None,str(params.get("quality_flag"))
+    q_zero=float(params["q_zero"])
+    if value<=0:
+        probability=q_zero
+    else:
+        probability=q_zero+(1.0-q_zero)*float(
+            gamma_dist.cdf(
+                value,
+                params["shape"],
+                loc=params["loc"],
+                scale=params["scale"],
+            )
+        )
+    probability=min(max(probability,1e-10),1-1e-10)
+    return float(norm.ppf(probability)),"OK"
+
+
 def target_year_spi(
     daily: pd.DataFrame,
     target_year: int,
@@ -145,13 +206,53 @@ def target_year_spi(
     baseline_end: int = BASELINE_END,
 ) -> pd.DataFrame:
     monthly=daily_to_monthly_precip(daily,require_complete_months=True)
+
+    calibration=monthly[
+        monthly["year"].between(int(baseline_start)-1,int(baseline_end))
+    ].copy()
+    target_chunk=monthly[
+        monthly["year"].between(int(target_year)-1,int(target_year))
+    ].copy()
+
+    expected_cal_months=(int(baseline_end)-int(baseline_start)+2)*12
+    if len(calibration)!=expected_cal_months:
+        raise ValueError(
+            f"SPI calibration chunk requires {expected_cal_months} months "
+            f"from {baseline_start-1} through {baseline_end}; found {len(calibration)}"
+        )
+    if len(target_chunk)!=24:
+        raise ValueError(
+            f"SPI target chunk requires 24 months from {target_year-1} through "
+            f"{target_year}; found {len(target_chunk)}"
+        )
+
+    calibration=_ensure_contiguous_months(calibration)
+    target_chunk=_ensure_contiguous_months(target_chunk)
+
     frames=[]
     for scale in SPI_SCALES:
-        frame=spi_gamma_monthly(
-            monthly,scale=scale,
+        params=_fit_spi_month_params(
+            calibration,scale=scale,
             baseline_start=baseline_start,baseline_end=baseline_end,
         )
-        frames.append(frame[frame["year"]==int(target_year)].copy())
+        target=target_chunk.copy()
+        target["accum_precip_mm"]=target["precip_mm"].rolling(
+            scale,min_periods=scale
+        ).sum()
+        target=target[target["year"]==int(target_year)].copy()
+        spi=[]; quality=[]
+        for row in target.to_dict(orient="records"):
+            val=row["accum_precip_mm"]
+            if pd.isna(val):
+                spi.append(None); quality.append("INSUFFICIENT_TARGET_LEAD")
+                continue
+            value,flag=_apply_spi_params(float(val),params[int(row["month"])])
+            spi.append(value); quality.append(flag)
+        target["scale_months"]=int(scale)
+        target["spi"]=spi
+        target["quality_flag"]=quality
+        frames.append(target)
+
     out=pd.concat(frames,ignore_index=True)
     if len(out)!=24:
         raise ValueError(
@@ -164,7 +265,6 @@ def target_year_spi(
     out["measurement_basis"]=MEASUREMENT_BASIS
     out["method_version"]="CHIRPS_SPI_GAMMA_0.1"
     return out
-
 
 def annual_spi_summary(monthly_spi: pd.DataFrame) -> pd.DataFrame:
     required={"indicator_id","value","quality_flag"}
