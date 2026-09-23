@@ -1,0 +1,23 @@
+{
+  "database": {
+    "provider": "supabase",
+    "project_id": "SET_AT_DEPLOYMENT",
+    "private_schema": "clr_private",
+    "browser_exposed": false
+  },
+  "object_store": {
+    "provider": "s3-compatible",
+    "bucket": "SET_AT_DEPLOYMENT",
+    "public": false,
+    "prefixes": {
+      "raw": "raw/",
+      "manifests": "manifests/",
+      "derived": "derived/",
+      "customer": "customer/"
+    }
+  },
+  "secrets": {
+    "source": "environment-or-secret-manager",
+    "commit_to_git": false
+  }
+}
