@@ -252,9 +252,35 @@ def extract_gfm_event_source_subset(
     return record,frame
 
 
-def summarize_gfm_event(frame:pd.DataFrame)->pd.DataFrame:
+def summarize_gfm_event(frame:pd.DataFrame, assets:list[dict]|None=None)->pd.DataFrame:
     rows=[]
-    for asset_id,g in frame.groupby("asset_location_id",dropna=False):
+    groups={k:g for k,g in frame.groupby("asset_location_id",dropna=False)}
+    asset_rows=assets or [
+        {
+            "asset_location_id":k,
+            "tenant_key":g.iloc[0]["tenant_key"],
+            "external_id":g.iloc[0]["external_id"],
+        }
+        for k,g in groups.items()
+    ]
+    for asset in asset_rows:
+        asset_id=asset["asset_location_id"]
+        g=groups.get(asset_id)
+        if g is None or g.empty:
+            rows.append({
+                "tenant_key":asset["tenant_key"],
+                "asset_location_id":asset_id,
+                "external_id":asset["external_id"],
+                "gfm_matched_item_count":0,
+                "gfm_covered_acquisition_count":0,
+                "gfm_eligible_acquisition_count":0,
+                "gfm_flood_positive_acquisition_count":0,
+                "gfm_advisory_flagged_eligible_count":0,
+                "gfm_flood_positive_acquisition_rate":None,
+                "gfm_max_likelihood_on_positive":None,
+                "quality_flag":"NO_ELIGIBLE_ACQUISITIONS",
+            })
+            continue
         first=g.iloc[0]
         covered=int(g["covered"].sum())
         eligible=int(g["eligible"].sum())
