@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Portfolio Intelligence Report",
+  "type": "object",
+  "required": ["report_type", "schema_version", "portfolio_id", "portfolio_metrics", "analytical_findings", "evidence_panel", "what_data_would_change_the_answer", "guardrails"],
+  "properties": {
+    "report_type": {"const": "PORTFOLIO_INTELLIGENCE"},
+    "schema_version": {"type": "string"},
+    "portfolio_id": {"type": "string"},
+    "portfolio_metrics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["metric_id", "value"],
+        "properties": {
+          "metric_id": {"type": "string"},
+          "value": {"type": ["number", "string", "boolean", "null"]},
+          "unit": {"type": ["string", "null"]},
+          "classification": {"type": ["string", "null"]},
+          "source_vintage": {"type": ["string", "null"]},
+          "quality_flag": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "analytical_findings": {"type": "array", "items": {"type": "object"}},
+    "evidence_panel": {"type": "array", "items": {"type": "object"}},
+    "what_data_would_change_the_answer": {"type": "array", "items": {"type": "string"}},
+    "guardrails": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}
