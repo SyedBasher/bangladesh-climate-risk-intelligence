@@ -213,8 +213,9 @@ def ffwc_event_context(
             SELECT a.tenant_key,a.asset_location_id,a.external_id,
                    l.station_id,l.distance_km,s.station_name,s.river_name,
                    s.danger_level_m AS station_danger_level_m,
+                   s.source_artifact_id AS station_source_artifact_id,
                    o.observed_at,o.water_level_m,o.danger_level_m,
-                   o.source_artifact_id
+                   o.source_artifact_id AS observation_source_artifact_id
             FROM asset_hydro_station_link l
             JOIN asset_location a ON a.asset_location_id=l.asset_location_id
             JOIN hydro_station s ON s.station_id=l.station_id
@@ -240,7 +241,8 @@ def ffwc_event_context(
                 "station_distance_km":float(first["distance_km"]),
                 "observation_count":0,"max_water_level_m":None,
                 "max_above_danger_m":None,"quality_flag":"NO_OBSERVATIONS_IN_WINDOW",
-                "source_artifact_ids":[],
+                "station_source_artifact_id":first["station_source_artifact_id"],
+                "observation_source_artifact_ids":[],
             })
             continue
         levels=obs["water_level_m"].astype(float)
@@ -260,7 +262,10 @@ def ffwc_event_context(
             "max_water_level_m":float(levels.max()),
             "max_above_danger_m":None if not above else float(max(above)),
             "quality_flag":"OFFICIAL_STATION_CONTEXT",
-            "source_artifact_ids":sorted(set(obs["source_artifact_id"].dropna().astype(str))),
+            "station_source_artifact_id":first["station_source_artifact_id"],
+            "observation_source_artifact_ids":sorted(
+                set(obs["observation_source_artifact_id"].dropna().astype(str))
+            ),
         })
     return pd.DataFrame(out)
 
@@ -305,7 +310,20 @@ def insert_ffwc_context_indicators(
                         start,end,row["quality_flag"],null_reason,run_id,utc_now(),
                     ),
                 )
-                for sid in row["source_artifact_ids"]:
+                if row.get("station_source_artifact_id"):
+                    conn.execute(
+                        """
+                        INSERT INTO asset_indicator_source(
+                            asset_indicator_id,source_artifact_id,source_role
+                        ) VALUES(?,?,?)
+                        """,
+                        (
+                            cur.lastrowid,
+                            row["station_source_artifact_id"],
+                            "FFWC_STATION_METADATA",
+                        ),
+                    )
+                for sid in row.get("observation_source_artifact_ids", []):
                     conn.execute(
                         """
                         INSERT INTO asset_indicator_source(
