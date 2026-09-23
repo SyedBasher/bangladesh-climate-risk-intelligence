@@ -82,6 +82,13 @@ aqueduct-run:
 cyclone-run:
 	python scripts/run_ibtracs_cyclone_context_local.py --start-year 1980
 
+worldpop-run:
+	python scripts/run_worldpop_population_context_local.py --year 2025
+
+ghsl-built-run:
+	@test -n "$(TILE_DIR)" || (echo "Usage: make -f Makefile.local ghsl-built-run TILE_DIR=/secure/path/ghsl_tiles" && exit 2)
+	python scripts/run_ghsl_built_context_local.py --tile-dir "$(TILE_DIR)"
+
 gfm-event:
 	@test -n "$(START)" && test -n "$(END)" || (echo "Usage: make -f Makefile.local gfm-event START=2025-07-15T00:00:00Z END=2025-07-20T23:59:59Z" && exit 2)
 	python scripts/run_gfm_event_local.py --start "$(START)" --end "$(END)"
@@ -102,4 +109,4 @@ ffwc-event:
 	python scripts/run_ffwc_event_context_local.py --start "$(START)" --end "$(END)"
 
 local-test:
-	pytest -q tests/test_local_store.py tests/test_local_assets.py tests/test_era5_local.py tests/test_jrc_flood.py tests/test_jrc_local.py tests/test_jrc_lineage.py tests/test_chirps.py tests/test_chirps_local.py tests/test_dem_context.py tests/test_copdem_local.py tests/test_copdem_lineage.py tests/test_osm_local.py tests/test_logistics.py tests/test_logistics_directed.py tests/test_route_flood_local.py tests/test_gfm_local.py tests/test_ffwc_local.py tests/test_drought.py tests/test_era5_soil_moisture_local.py tests/test_aqueduct_local.py tests/test_ibtracs_local.py tests/test_public_boundary.py
+	pytest -q tests/test_local_store.py tests/test_local_assets.py tests/test_era5_local.py tests/test_jrc_flood.py tests/test_jrc_local.py tests/test_jrc_lineage.py tests/test_chirps.py tests/test_chirps_local.py tests/test_dem_context.py tests/test_copdem_local.py tests/test_copdem_lineage.py tests/test_osm_local.py tests/test_logistics.py tests/test_logistics_directed.py tests/test_route_flood_local.py tests/test_gfm_local.py tests/test_ffwc_local.py tests/test_drought.py tests/test_era5_soil_moisture_local.py tests/test_aqueduct_local.py tests/test_ibtracs_local.py tests/test_worldpop_local.py tests/test_ghsl_built_local.py tests/test_public_boundary.py
