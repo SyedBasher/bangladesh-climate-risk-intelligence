@@ -1,0 +1,57 @@
+{
+  "schema_version": "0.9.0",
+  "profiles": {
+    "factory_core_production": {
+      "description": "Minimum authoritative production profile for factory physical-risk attachment.",
+      "publish_mode": "ATOMIC",
+      "required_sources": [
+        "ERA5L_DAILY",
+        "JRC_RP10",
+        "JRC_RP50",
+        "JRC_RP100",
+        "CHIRPS_FINAL",
+        "COPDEM_GLO30"
+      ],
+      "optional_sources": [
+        "ERA5L_HOURLY",
+        "GFM",
+        "FFWC",
+        "OSM_BD"
+      ],
+      "allow_validation_gateway_values": false
+    },
+    "factory_heat_production": {
+      "description": "Authoritative heat-only production profile.",
+      "publish_mode": "ATOMIC",
+      "required_sources": [
+        "ERA5L_DAILY"
+      ],
+      "optional_sources": [
+        "ERA5L_HOURLY"
+      ],
+      "allow_validation_gateway_values": false
+    },
+    "factory_heat_validation": {
+      "description": "Non-production heat validation profile.",
+      "publish_mode": "VALIDATION_ONLY",
+      "required_sources": [],
+      "optional_sources": [
+        "ERA5L_POINT_FAST",
+        "OPEN_METEO_ERA5L"
+      ],
+      "allow_validation_gateway_values": true
+    },
+    "road_logistics_production": {
+      "description": "Road graph production profile.",
+      "publish_mode": "ATOMIC",
+      "required_sources": [
+        "OSM_BD"
+      ],
+      "optional_sources": [
+        "JRC_RP100",
+        "GFM"
+      ],
+      "allow_validation_gateway_values": false
+    }
+  }
+}

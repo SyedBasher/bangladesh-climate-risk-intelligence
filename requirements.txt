@@ -1,0 +1,6 @@
+numpy>=2.0
+pandas>=2.2
+rasterio>=1.4
+shapely>=2.0
+pyproj>=3.6
+pytest>=8.0

@@ -1,0 +1,15 @@
+indicator_id,intelligence_level,unit,definition,inputs,guardrail
+network_snap_distance_m,DIRECT_NETWORK_CONTEXT,m,Distance from asset coordinate to accepted routable road node/edge,OSM graph + asset point,Do not accept an admin/locality centroid as an asset point.
+baseline_route_length_km,DIRECT_NETWORK_CONTEXT,km,Shortest accepted baseline route from asset to explicit endpoint,OSM graph + endpoint,Endpoint must be explicit; do not assume port.
+baseline_route_time_min,DIRECT_NETWORK_CONTEXT,minutes,Travel-time-weighted route under specified speed model,OSM graph + speed model,Modelled network time is not observed travel time.
+hazard_exposed_route_km,SECOND_ORDER_EXPOSURE,km,Length of baseline route intersecting specified hazard footprint,route geometry + hazard layer,Hazard and route vintages stored.
+hazard_exposed_route_share,SECOND_ORDER_EXPOSURE,share,Exposed route length / total route length,route geometry + hazard layer,No downtime inference.
+hazard_free_route_exists,SECOND_ORDER_RESILIENCE,boolean,Whether a path exists after removing hazard-blocked edges,hazard-pruned graph,Blocking threshold must be explicit.
+hazard_detour_ratio,SECOND_ORDER_RESILIENCE,ratio,Shortest hazard-avoiding length / baseline length,baseline + hazard-pruned graph,Null if no viable alternative path.
+edge_disjoint_route_count,SECOND_ORDER_RESILIENCE,count,Number of edge-disjoint paths up to configured cap,OSM graph,"Topological redundancy, not equal to operational capacity."
+edge_disjoint_route_count_after_hazard,SECOND_ORDER_RESILIENCE,count,Edge-disjoint paths after blocked edges removed,hazard-pruned graph,Hazard blocking definition required.
+route_redundancy_loss,SECOND_ORDER_RESILIENCE,count,Baseline edge-disjoint paths minus post-hazard paths,two route graphs,No financial-loss interpretation.
+isolation_flag,SECOND_ORDER_SIGNAL,boolean,No accepted path remains to explicit endpoint,hazard-pruned graph,Endpoint-specific; a site may still connect elsewhere.
+shared_bottleneck_asset_count,THIRD_ORDER_CONCENTRATION,assets,Number of asset routes using a given edge,multi-asset route set,Requires common endpoint/OD interpretation.
+shared_hazard_bottleneck_asset_count,THIRD_ORDER_CONCENTRATION,assets,Assets whose routes share the same hazard-exposed edge,multi-asset route set + hazard,"Correlated operational exposure, not expected loss."
+asset_route_cut_edge_count,THIRD_ORDER_CRITICALITY,count,Edges whose individual removal disconnects asset from endpoint,network graph,Topology-based criticality only.

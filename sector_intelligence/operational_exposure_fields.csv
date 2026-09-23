@@ -1,0 +1,15 @@
+field,unit,source,classification,sector_scope,analytical_use
+worker_total,persons,DIFE,SOURCE,All sectors,Direct exposure denominator; can combine with heat/flood footprint without a loss model.
+machine_count,machines,BGMEA/association,SOURCE,RMG where available,"Operational scale; can count machines located in a hazard footprint, but not infer damaged machines."
+annual_capacity,source-specific,BGMEA/association,SOURCE,Where available,Capacity exposed at site; do not convert into lost output without downtime assumptions.
+product_type,text,EPB/BGMEA/association,SOURCE,Where available,Supports sector/product-specific supply-chain dependencies.
+export_registration,boolean/status,EPB,SOURCE,Exporters,Separates domestic-only and export-linked production where site match is exact.
+shift_workers,persons/shift,Customer/site survey,CUSTOMER,Labour-intensive sectors,Improves heat exposure over total-headcount approximation.
+operating_hours,hours/day,Customer/site survey,CUSTOMER,All sectors,Required for time-of-day heat and disruption modelling.
+floor_elevation,m above ground / datum,Customer/survey,CUSTOMER,Flood-sensitive sites,Needed before translating external flood depth into equipment/inventory exposure.
+inventory_value,currency,Customer,CUSTOMER,Factories/warehouses,Required for potential damage/loss modelling.
+equipment_value,currency,Customer,CUSTOMER,Factories,Required for asset-loss modelling.
+backup_power_capacity,kW / hours,Customer,CUSTOMER,All sectors,Important for heat/cooling/grid-outage resilience.
+water_source,category,Customer,CUSTOMER,Water-dependent sectors,Groundwater/surface/utility source affects drought/water-stress transmission.
+water_use,m3/day,Customer,CUSTOMER,Water-dependent sectors,Required for site-specific water-stress sensitivity.
+primary_port_or_market,node,Customer/EPB/logistics,CUSTOMER_OR_SOURCE,Exporters,Allows route and node-dependency analysis.

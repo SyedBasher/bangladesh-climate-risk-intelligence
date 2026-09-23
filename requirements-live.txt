@@ -1,0 +1,11 @@
+cdsapi>=0.7
+numpy>=2.0
+pandas>=2.2
+xarray>=2025.1
+netCDF4>=1.7
+rasterio>=1.4
+shapely>=2.0
+pyproj>=3.6
+networkx>=3.4
+osmium>=4.0
+pytest>=8.0

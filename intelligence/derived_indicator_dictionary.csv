@@ -1,0 +1,10 @@
+indicator_id,intelligence_level,unit,formula,inputs,classification,research_refs,guardrail
+worker_heat_exposure_days,SECOND_ORDER_EXPOSURE,worker-days,workers * extreme_heat_days,DIFE workers + ERA5-Land calculated heat days,CALCULATED_EXPOSURE,R007;R008,Does not estimate lost workdays/productivity.
+workers_at_rp100_inundated_site,SECOND_ORDER_EXPOSURE,workers,"workers if modelled RP100 depth > 0, else 0",DIFE workers + JRC RP100,CALCULATED_EXPOSURE,R001;R013,Does not imply annual inundation.
+ead_in_rp100_inundated_assets,THIRD_ORDER_FINANCIAL_EXPOSURE,currency,sum EAD for assets with RP100 depth > 0,bank EAD + geocoded assets + JRC,CALCULATED_EXPOSURE,R001;R004,No PD/LGD transformation.
+collateral_value_in_rp100_footprint,THIRD_ORDER_FINANCIAL_EXPOSURE,currency,sum collateral value where RP100 depth > 0,bank collateral + geocoded collateral + JRC,CALCULATED_EXPOSURE,R001;R004,No automatic collateral haircut.
+route_exposed_share,SECOND_ORDER_NETWORK_EXPOSURE,share,hazard-intersecting route length / total selected route length,OSM route + hazard raster,CALCULATED_EXPOSURE,R006;R014,Depends on selected routing method.
+all_routes_exposed_flag,SECOND_ORDER_NETWORK_SIGNAL,boolean,true if every accepted alternative route crosses hazard footprint,route alternatives + hazard raster,EVIDENCE_INFORMED_SIGNAL,R006;R014,Requires sufficient route alternatives.
+builtup_change_inside_hazard,SECOND_ORDER_SPATIAL_CHANGE,m2 or share,change in built-up area inside fixed hazard footprint between vintages,GHSL vintages + hazard footprint,CALCULATED_EXPOSURE,R005;R013,Hazard definition and geometry must be fixed across vintages.
+compound_event_count,SECOND_ORDER_COMPOUND_EXPOSURE,count,count sequential/coincident hazard events under explicit window,event timelines,CALCULATED_EXPOSURE,R010,Window and event definitions stored.
+asset_cluster_exposure_count,THIRD_ORDER_CONCENTRATION,assets,number of assets sharing hazard footprint/cluster,asset portfolio + hazard polygon,CALCULATED_EXPOSURE,R001;R006,Not expected loss.

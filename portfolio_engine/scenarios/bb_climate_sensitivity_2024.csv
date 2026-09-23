@@ -1,0 +1,4 @@
+scenario_id,label,downgrade_share,source,meaning,classification,guardrail
+BB_CLIMATE_MINOR,Minor,0.03,Bangladesh Bank Guidelines on Stress Testing 2024,Direct downgrade assumption applied to climate-vulnerable loans,OFFICIAL_REGULATORY_SCENARIO,Not a probability; not a Mangrove estimate.
+BB_CLIMATE_MODERATE,Moderate,0.06,Bangladesh Bank Guidelines on Stress Testing 2024,Direct downgrade assumption applied to climate-vulnerable loans,OFFICIAL_REGULATORY_SCENARIO,Not a probability; not a Mangrove estimate.
+BB_CLIMATE_MAJOR,Major,0.09,Bangladesh Bank Guidelines on Stress Testing 2024,Direct downgrade assumption applied to climate-vulnerable loans,OFFICIAL_REGULATORY_SCENARIO,Not a probability; not a Mangrove estimate.

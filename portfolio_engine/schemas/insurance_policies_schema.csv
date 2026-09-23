@@ -1,0 +1,9 @@
+field,type,meaning,requirement,guardrail
+policy_id,string,Stable policy identifier,Required,Pseudonymous acceptable.
+insured_id,string,Pseudonymous insured identifier,Required,
+asset_id,string,Physical insured location,Required,
+sum_insured,number,Policy sum insured,Required,Store currency separately.
+currency,string,Currency,Required,
+coverage_type,string,Property / business interruption / other,Recommended,
+policy_start,date,Policy inception,Optional,
+policy_end,date,Policy expiry,Optional,

@@ -1,0 +1,8 @@
+field,type,meaning,requirement,guardrail
+loan_id,string,Stable loan/facility identifier,Required,Pseudonymous acceptable.
+borrower_id,string,Foreign key to borrower,Required,
+ead,number,Exposure at default / institution-defined outstanding exposure,Required,Store currency separately.
+currency,string,Currency code,Required,Do not mix currencies without explicit FX vintage.
+facility_type,string,Term / working capital / trade finance / other,Recommended,Preserve institution taxonomy.
+maturity_date,date,Contractual maturity,Optional,
+performing_status,string,Source-reported credit status,Optional,Never infer from climate exposure.

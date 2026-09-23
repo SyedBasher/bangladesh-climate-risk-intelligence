@@ -1,0 +1,12 @@
+field,type,meaning,requirement,guardrail
+asset_id,string,Stable physical asset/site identifier,Required,One row per physical location.
+borrower_id,string,Owner/operator borrower,Required,
+asset_role,string,OPERATING_SITE / COLLATERAL / WAREHOUSE / OFFICE / OTHER,Required,Role is essential.
+latitude,number,WGS84 latitude,Required for site analysis,
+longitude,number,WGS84 longitude,Required for site analysis,
+coordinate_source,string,Coordinate provenance,Required,
+site_identity_grade,string,EXACT_SITE / PROBABLE_SITE / etc.,Required,Fine hazard requires exact site.
+coordinate_status,string,RESOLVED / PENDING,Required,
+collateral_value,number,Current collateral value if applicable,Optional,Requires valuation date/currency.
+collateral_currency,string,Collateral currency,Conditional,
+valuation_date,date,Collateral valuation date,Conditional,

@@ -1,0 +1,7 @@
+geocode_grade,site_sensitive_20_100m,coarse_climate_1km_plus,admin_aggregation,rule
+EXACT_SITE,ALLOW,ALLOW,ALLOW,Use versioned point coordinate and precision metadata
+PROBABLE_SITE,BLOCK_BY_DEFAULT,ALLOW_WITH_FLAG,ALLOW,Do not attach fine flood/DEM/site-distance metrics until exact site is confirmed
+LOCALITY_ONLY,BLOCK,BLOCK,ALLOW,Administrative/context linkage only
+AMBIGUOUS,BLOCK,BLOCK,ALLOW_IF_ADMIN_KNOWN,No point extraction
+NO_MATCH,BLOCK,BLOCK,ALLOW_IF_ADMIN_KNOWN,No point extraction
+REJECTED_ADMIN_MISMATCH,BLOCK,BLOCK,BLOCK,Provider candidate is inconsistent with DIFE

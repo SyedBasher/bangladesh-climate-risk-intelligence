@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Mangrove Climate Risk Asset Input",
+  "type": "object",
+  "required": [
+    "external_system",
+    "external_id",
+    "asset_type",
+    "latitude",
+    "longitude",
+    "coordinate_source"
+  ],
+  "properties": {
+    "external_system": {"type":"string"},
+    "external_id": {"type":"string"},
+    "asset_type": {"type":"string"},
+    "latitude": {"type":"number","minimum":-90,"maximum":90},
+    "longitude": {"type":"number","minimum":-180,"maximum":180},
+    "coordinate_source": {"type":"string"},
+    "coordinate_precision_m": {"type":["number","null"],"minimum":0},
+    "geocode_method": {"type":["string","null"]},
+    "geocode_confidence": {"type":["number","null"],"minimum":0,"maximum":1},
+    "valid_from": {"type":["string","null"],"format":"date-time"}
+  },
+  "additionalProperties": false
+}

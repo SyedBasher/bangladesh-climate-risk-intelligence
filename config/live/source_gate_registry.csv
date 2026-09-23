@@ -1,0 +1,13 @@
+source_id,provider,dataset,measurement_class,access_gate,use_class,purpose,guardrail
+ERA5L_DAILY,Copernicus CDS,derived-era5-land-daily-statistics,OFFICIAL_REANALYSIS_DERIVED,CDS_CREDENTIAL,PRODUCTION,Daily max/min heat thresholds and long-run heat trends,Store retrieval request + returned zip/NetCDF hash; daily statistic is generated during retrieval.
+ERA5L_HOURLY,Copernicus CDS,reanalysis-era5-land,OFFICIAL_REANALYSIS,CDS_CREDENTIAL,PRODUCTION,Hourly temperature/dewpoint/pressure for humidity-aware heat metrics,Use parent hourly archive for production; split requests by month/area.
+ERA5L_POINT_FAST,Copernicus CDS,reanalysis-era5-land-timeseries,OFFICIAL_REANALYSIS_REPACKAGED,CDS_CREDENTIAL,VALIDATION_ONLY,Fast point-series QA,ECMWF documentation says the time-series entry is not recommended for production and may change/deprecate.
+OPEN_METEO_ERA5L,Open-Meteo,ERA5-Land gateway,SECONDARY_GATEWAY,NETWORK,VALIDATION_ONLY,Independent point-series QA,Never replace official CDS provenance in production.
+JRC_RP10,JRC/CEMS,Global River Flood Hazard v2.1.2 RP10,PUBLIC_SCIENTIFIC_SERVICE,NETWORK_BINARY,PRODUCTION,Modelled flood depth,Requires permanent-water and spurious-depth masks.
+JRC_RP50,JRC/CEMS,Global River Flood Hazard v2.1.2 RP50,PUBLIC_SCIENTIFIC_SERVICE,NETWORK_BINARY,PRODUCTION,Modelled flood depth,Requires permanent-water and spurious-depth masks.
+JRC_RP100,JRC/CEMS,Global River Flood Hazard v2.1.2 RP100,PUBLIC_SCIENTIFIC_SERVICE,NETWORK_BINARY,PRODUCTION,Modelled flood depth,Requires permanent-water and spurious-depth masks.
+CHIRPS_FINAL,UCSB CHC,CHIRPS v3 daily final RNL,RESEARCH,NETWORK_BINARY,PRODUCTION,Extreme rainfall,Keep preliminary/final vintages distinct; production profile uses final.
+COPDEM_GLO30,Copernicus Data Space,Copernicus DEM GLO-30,PUBLIC_SERVICE,CDSE_CREDENTIAL,PRODUCTION,Elevation DSM,"DSM, not bare-earth DTM."
+GFM,Copernicus EMS,Global Flood Monitoring,PUBLIC_OPERATIONAL,GFM_CREDENTIAL,PRODUCTION_OPTIONAL,Observed Sentinel-1 flood history,Store eligible-observation denominator and exclusion/advisory flags.
+FFWC,BWDB/FFWC,Official FFWC API,OFFICIAL_BANGLADESH,FFWC_REGISTRATION,PRODUCTION_OPTIONAL,Station water levels/anomalies,No endpoint guessing; use registered documentation.
+OSM_BD,Geofabrik / OSM,bangladesh-260919.osm.pbf,OPEN_COMMUNITY,NETWORK_BINARY,PRODUCTION,Road topology and route intelligence,Pin dated PBF and hash; keep ODbL network layer separated.
