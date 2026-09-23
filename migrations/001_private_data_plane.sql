@@ -139,7 +139,7 @@ create table if not exists clr_private.asset_indicator_source (
     asset_indicator_id bigint not null references clr_private.asset_indicator(asset_indicator_id) on delete cascade,
     source_artifact_id uuid not null references clr_private.source_artifact(source_artifact_id),
     source_role text not null check (source_role in (
-        'PRIMARY','DEPTH','PERMANENT_WATER_MASK','SPURIOUS_DEPTH_MASK','TILE_EXTENTS','TARGET_SERIES','BASELINE_SERIES','SOURCE_PACKAGE','DEM_RASTER','AUXILIARY'
+        'PRIMARY','DEPTH','PERMANENT_WATER_MASK','SPURIOUS_DEPTH_MASK','TILE_EXTENTS','TARGET_SERIES','BASELINE_SERIES','SOURCE_PACKAGE','DEM_RASTER','GFM_EVENT_SERIES','FFWC_WATER_LEVEL','AUXILIARY'
     )),
     primary key (asset_indicator_id, source_artifact_id, source_role)
 );
@@ -183,6 +183,44 @@ create table if not exists clr_private.logistics_route_analysis_source (
     primary key(route_analysis_id, source_artifact_id, source_role)
 );
 
+
+create table if not exists clr_private.hydro_station (
+    station_id text primary key,
+    provider text not null,
+    station_name text not null,
+    river_name text,
+    geom geometry(Point,4326) not null,
+    danger_level_m double precision,
+    source_artifact_id uuid references clr_private.source_artifact(source_artifact_id),
+    metadata jsonb not null default '{}'::jsonb,
+    updated_at timestamptz not null default now()
+);
+
+create table if not exists clr_private.hydro_observation (
+    hydro_observation_id bigint generated always as identity primary key,
+    provider text not null,
+    station_id text not null references clr_private.hydro_station(station_id),
+    observed_at timestamptz not null,
+    water_level_m double precision not null,
+    danger_level_m double precision,
+    source_artifact_id uuid references clr_private.source_artifact(source_artifact_id),
+    quality_flag text not null default 'OFFICIAL_SOURCE',
+    unique(provider,station_id,observed_at,source_artifact_id)
+);
+
+create index if not exists hydro_observation_station_time_idx
+    on clr_private.hydro_observation(station_id,observed_at);
+
+create table if not exists clr_private.asset_hydro_station_link (
+    asset_location_id uuid not null references clr_private.asset_location(asset_location_id),
+    station_id text not null references clr_private.hydro_station(station_id),
+    distance_km double precision not null check(distance_km >= 0),
+    rank_order integer not null check(rank_order >= 1),
+    method_version text not null,
+    created_at timestamptz not null default now(),
+    primary key(asset_location_id,station_id,method_version)
+);
+
 alter table clr_private.tenant enable row level security;
 alter table clr_private.asset_location enable row level security;
 alter table clr_private.source_artifact enable row level security;
@@ -194,6 +232,9 @@ alter table clr_private.route_endpoint enable row level security;
 alter table clr_private.asset_route_dependency enable row level security;
 alter table clr_private.logistics_route_analysis enable row level security;
 alter table clr_private.logistics_route_analysis_source enable row level security;
+alter table clr_private.hydro_station enable row level security;
+alter table clr_private.hydro_observation enable row level security;
+alter table clr_private.asset_hydro_station_link enable row level security;
 
 revoke all on all tables in schema clr_private from public, anon, authenticated;
 grant all on all tables in schema clr_private to service_role;
