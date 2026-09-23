@@ -23,7 +23,8 @@ def test_public_index_shows_all_current_physical_layers():
         assert required in text
 
 
-def test_public_index_marks_logistics_as_next_build():
+def test_public_index_marks_logistics_as_current_and_event_validation_next():
     text = (ROOT / "index.html").read_text(encoding="utf-8")
-    assert "OSM Logistics &amp; Route Resilience" in text
+    assert "Logistics pipeline" in text
+    assert "Observed Flood &amp; Event Validation" in text
     assert "Next build" in text
