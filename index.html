@@ -114,6 +114,7 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
       <div class="status-row">
         <span class="badge"><span class="dot"></span> Heat pipeline</span>
         <span class="badge"><span class="dot"></span> River flood pipeline</span>
+        <span class="badge"><span class="dot"></span> Observed flood pipeline</span>
         <span class="badge"><span class="dot"></span> Rainfall pipeline</span>
         <span class="badge"><span class="dot"></span> Terrain pipeline</span>
         <span class="badge"><span class="dot"></span> Logistics pipeline</span>
@@ -193,6 +194,7 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
         <ul>
           <li>Outdoor heat conditions and warm nights</li>
           <li>River-flood depth by return period</li>
+          <li>Observed flood detections and nearby official gauge context</li>
           <li>Rainfall extremes and wet/dry spells</li>
           <li>DSM elevation and local surface context</li>
         </ul>
@@ -237,14 +239,14 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
     <div class="next-card">
       <div>
         <div class="next-label">Next build</div>
-        <h3>Observed Flood &amp; Event Validation</h3>
-        <p>Add GFM observed flood detections and FFWC station/event context so modelled return-period exposure can be compared with observed flood evidence and event timelines.</p>
+        <h3>Water Stress &amp; Drought</h3>
+        <p>Add rainfall-deficit, soil-moisture and basin water-stress context so asset exposure can distinguish short-run drought conditions from longer-run structural water pressure.</p>
       </div>
       <div class="next-box">
-        <div>GFM observed flood detections</div>
-        <div>FFWC station and event context</div>
-        <div>Model-versus-observation comparison</div>
-        <div>Event timeline validation</div>
+        <div>SPI-3 / SPI-12 rainfall deficits</div>
+        <div>ERA5-Land soil-moisture anomalies</div>
+        <div>Aqueduct basin water-stress context</div>
+        <div>Operational water-source dependence</div>
       </div>
     </div>
   </section>
@@ -274,6 +276,7 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
         <tbody>
           <tr><td>Heat</td><td>ERA5-Land reanalysis</td><td>Outdoor grid-cell heat conditions, not indoor factory temperature</td></tr>
           <tr><td>River flood</td><td>JRC/CEMS model</td><td>Return-period river-flood hazard, not an event forecast</td></tr>
+          <tr><td>Observed flood</td><td>GFM + FFWC</td><td>Sentinel-1 event detections and nearby official gauge context, not site loss or interpolated site depth</td></tr>
           <tr><td>Rainfall</td><td>CHIRPS v3 blended product</td><td>Grid-cell rainfall estimate, not a site rain gauge</td></tr>
           <tr><td>Terrain</td><td>Copernicus DEM GLO-30</td><td>Digital Surface Model, not bare-earth elevation</td></tr>
         </tbody>

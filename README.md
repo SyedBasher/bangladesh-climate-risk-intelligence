@@ -78,6 +78,8 @@ See:
 - `src/clr/osm_local.py` — pinned Geofabrik/OSM road-network ingestion and private endpoint linkage
 - `src/clr/logistics_local.py` — baseline private route analysis and shared bottlenecks
 - `src/clr/route_flood_local.py` — JRC flood exposure overlay for baseline routes
+- `src/clr/gfm_local.py` — Sentinel-1 GFM observed-flood event evidence and JRC comparison
+- `src/clr/ffwc_local.py` — official FFWC/BWDB station snapshot ingestion and nearest-gauge event context
 - `src/clr/intelligence.py` — transparent second-/third-order exposure logic
 - `src/clr/portfolio.py` — bank/insurer portfolio accumulation and concentration
 - `src/clr/live_integration.py` — production source gates and provenance controls
