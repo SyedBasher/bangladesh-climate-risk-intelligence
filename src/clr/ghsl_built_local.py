@@ -361,6 +361,11 @@ def build_built_context(
                 if total_m2 is None or total_m2<=0
                 else nres_m2/total_m2
             )
+            nres_share_null_reason=(
+                "NO_BUILT_SURFACE_IN_BUFFER"
+                if quality=="OK" and total_m2 is not None and total_m2<=0
+                else None
+            )
 
             rows.append({
                 "tenant_key":asset["tenant_key"],
@@ -373,6 +378,7 @@ def build_built_context(
                 "nres_built_surface_m2":nres_m2,
                 "built_surface_fraction_of_buffer":built_fraction,
                 "nres_share_of_built_surface":nres_share,
+                "nres_share_null_reason":nres_share_null_reason,
                 "tile_coverage_share":coverage,
                 "nodata_cell_share":nodata_share,
                 "quality_flag":quality,
@@ -443,7 +449,17 @@ def insert_built_indicators(
             ]
             for indicator_id,value,unit,lineage in specs:
                 value=None if value is None or pd.isna(value) else float(value)
-                null_reason=None if value is not None else row["quality_flag"]
+                if value is not None:
+                    null_reason=None
+                elif indicator_id.startswith("ghsl2020_nres_share"):
+                    null_reason=row.get("nres_share_null_reason") or row["quality_flag"]
+                else:
+                    null_reason=row["quality_flag"]
+                primary_source=(
+                    nres_sources[0]
+                    if lineage=="NRES" and nres_sources
+                    else total_sources[0] if total_sources else None
+                )
                 cur=conn.execute(
                     """
                     INSERT INTO asset_indicator(
@@ -455,7 +471,7 @@ def insert_built_indicators(
                     (
                         row["tenant_key"],row["asset_location_id"],indicator_id,
                         value,None,unit,"CALCULATED",MEASUREMENT_BASIS,
-                        (total_sources[0] if total_sources else None),
+                        primary_source,
                         "GHSL_BUILT_RADIUS_0.1",
                         "2020-01-01","2020-12-31",
                         row["quality_flag"],null_reason,run_id,utc_now(),
