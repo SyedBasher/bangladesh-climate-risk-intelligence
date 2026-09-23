@@ -40,5 +40,11 @@ chirps-run:
 	@test -n "$(YEAR)" || (echo "Usage: make -f Makefile.local chirps-run YEAR=2025" && exit 2)
 	python scripts/run_chirps_rainfall_local.py --year "$(YEAR)"
 
+copdem-plan:
+	python scripts/plan_copdem_local.py
+
+copdem-run:
+	python scripts/run_copdem_local.py
+
 local-test:
-	pytest -q tests/test_local_store.py tests/test_local_assets.py tests/test_era5_local.py tests/test_jrc_flood.py tests/test_jrc_local.py tests/test_jrc_lineage.py tests/test_chirps.py tests/test_chirps_local.py tests/test_public_boundary.py
+	pytest -q tests/test_local_store.py tests/test_local_assets.py tests/test_era5_local.py tests/test_jrc_flood.py tests/test_jrc_local.py tests/test_jrc_lineage.py tests/test_chirps.py tests/test_chirps_local.py tests/test_dem_context.py tests/test_copdem_local.py tests/test_copdem_lineage.py tests/test_public_boundary.py
