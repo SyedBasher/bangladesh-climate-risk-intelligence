@@ -343,6 +343,46 @@ def _xyz(lat,lon):
     return (math.cos(p)*math.cos(l),math.cos(p)*math.sin(l),math.sin(p))
 
 
+class NetworkNodeIndex:
+    def __init__(self, nodes: pd.DataFrame):
+        if nodes.empty:
+            raise ValueError("Road node table is empty")
+        self.nodes=nodes.reset_index(drop=True)
+        self._xyz=np.array([
+            _xyz(float(a),float(b))
+            for a,b in zip(self.nodes["latitude"],self.nodes["longitude"])
+        ])
+        try:
+            from scipy.spatial import cKDTree
+            self._tree=cKDTree(self._xyz)
+        except ImportError:
+            self._tree=None
+
+    def nearest(self, lat: float, lon: float, *, max_snap_m: float = 500.0) -> dict:
+        q=np.array(_xyz(float(lat),float(lon)))
+        if self._tree is not None:
+            chord,idx=self._tree.query(q,k=1)
+            angular=2*math.asin(min(1.0,float(chord)/2))
+            distance=6371008.8*angular
+            idx=int(idx)
+        else:
+            diffs=self._xyz-q
+            chord=np.sqrt((diffs*diffs).sum(axis=1))
+            idx=int(chord.argmin())
+            angular=2*math.asin(min(1.0,float(chord[idx])/2))
+            distance=6371008.8*angular
+        row=self.nodes.iloc[idx]
+        quality="GOOD" if distance<=100 else "REVIEW" if distance<=max_snap_m else "REJECTED"
+        return {
+            "node_id":int(row["node_id"]),
+            "node_latitude":float(row["latitude"]),
+            "node_longitude":float(row["longitude"]),
+            "snap_distance_m":float(distance),
+            "snap_quality":quality,
+            "accepted":bool(distance<=max_snap_m),
+        }
+
+
 def nearest_network_node(
     nodes: pd.DataFrame,
     lat: float,
@@ -350,33 +390,7 @@ def nearest_network_node(
     *,
     max_snap_m: float = 500.0,
 ) -> dict:
-    if nodes.empty:
-        raise ValueError("Road node table is empty")
-    try:
-        from scipy.spatial import cKDTree
-        arr=np.array([_xyz(a,b) for a,b in zip(nodes["latitude"],nodes["longitude"])])
-        q=np.array(_xyz(float(lat),float(lon)))
-        tree=cKDTree(arr)
-        chord,idx=tree.query(q,k=1)
-        angular=2*math.asin(min(1.0,float(chord)/2))
-        distance=6371008.8*angular
-        row=nodes.iloc[int(idx)]
-    except ImportError:
-        distances=np.array([
-            haversine_m(float(lat),float(lon),float(a),float(b))
-            for a,b in zip(nodes["latitude"],nodes["longitude"])
-        ])
-        idx=int(distances.argmin()); distance=float(distances[idx]); row=nodes.iloc[idx]
-
-    quality="GOOD" if distance<=100 else "REVIEW" if distance<=max_snap_m else "REJECTED"
-    return {
-        "node_id":int(row["node_id"]),
-        "node_latitude":float(row["latitude"]),
-        "node_longitude":float(row["longitude"]),
-        "snap_distance_m":float(distance),
-        "snap_quality":quality,
-        "accepted":bool(distance<=max_snap_m),
-    }
+    return NetworkNodeIndex(nodes).nearest(lat,lon,max_snap_m=max_snap_m)
 
 
 def import_route_endpoints(
