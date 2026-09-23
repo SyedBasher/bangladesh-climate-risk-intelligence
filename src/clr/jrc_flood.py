@@ -30,18 +30,46 @@ def tile_prefix_from_properties(properties: dict) -> str:
         match = TILE_PREFIX_RE.search(str(value))
         if match:
             return match.group(1).upper()
+    raise ValueError("Tile properties do not expose a complete JRC tile prefix.")
 
-    # Legacy fallback for known property keys. A bare numeric ID is deliberately rejected,
-    # because it is insufficient to construct a filename safely.
-    for key in ("tile_id", "tile", "name", "Name", "filename"):
+
+def _coord_token(value: float, positive: str, negative: str) -> str:
+    rounded = round(float(value))
+    if abs(float(value) - rounded) > 1e-6:
+        raise ValueError("JRC fallback tile geometry is not aligned to integer degrees.")
+    return f"{positive if rounded >= 0 else negative}{abs(int(rounded))}"
+
+
+def tile_prefix_from_feature(feature: dict) -> str:
+    properties = feature.get("properties", {})
+    try:
+        return tile_prefix_from_properties(properties)
+    except ValueError:
+        pass
+
+    numeric_id = None
+    for key in ("ID", "id", "Id", "tile_id"):
         value = properties.get(key)
-        if value in (None, ""):
+        if value is None:
             continue
-        match = TILE_PREFIX_RE.search(str(value))
-        if match:
-            return match.group(1).upper()
+        text = str(value).strip()
+        if text.upper().startswith("ID"):
+            text = text[2:]
+        if text.isdigit():
+            numeric_id = int(text)
+            break
+    if numeric_id is None:
+        raise ValueError("Tile feature lacks both a complete prefix and an explicit numeric ID.")
 
-    raise ValueError("Tile extent feature does not expose a complete JRC tile prefix.")
+    geom = shape(feature["geometry"])
+    minx, miny, maxx, maxy = geom.bounds
+    # JRC filenames use the tile's north and west edges, e.g. N30_E80.
+    north = _coord_token(maxy, "N", "S")
+    west = _coord_token(minx, "E", "W")
+    candidate = f"ID{numeric_id}_{north}_{west}"
+    if not TILE_PREFIX_RE.fullmatch(candidate):
+        raise ValueError(f"Could not construct a valid JRC tile prefix: {candidate}")
+    return candidate
 
 
 def resolve_tile(tile_extents, lat, lon):
@@ -50,7 +78,7 @@ def resolve_tile(tile_extents, lat, lon):
     hits = []
     for feature in tile_extents["features"]:
         if shape(feature["geometry"]).covers(p):
-            hits.append(tile_prefix_from_properties(feature.get("properties", {})))
+            hits.append(tile_prefix_from_feature(feature))
     hits = sorted(set(hits))
     if len(hits) == 1:
         return hits[0]
