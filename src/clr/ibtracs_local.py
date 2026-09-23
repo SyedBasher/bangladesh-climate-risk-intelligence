@@ -32,6 +32,23 @@ DEFAULT_START_YEAR=1980
 DEFAULT_MAX_DISTANCE_KM=500.0
 SUMMARY_RADII_KM=(100.0,250.0)
 
+NEAREST_COLUMNS=(
+    "tenant_key","asset_location_id","external_system","external_id",
+    "site_identity_grade","sid","season","storm_name",
+    "closest_trackpoint_time","closest_trackpoint_distance_km",
+    "track_latitude","track_longitude","nature","track_type",
+    "wmo_agency","wmo_wind_knots","wmo_pressure_hpa",
+    "usa_agency","usa_wind_knots","usa_pressure_hpa",
+    "storm_translation_speed_knots","storm_translation_direction_deg",
+    "ibtracs_distance_to_land_km","ibtracs_landfall_next3h_km",
+)
+TIMELINE_COLUMNS=(
+    "tenant_key","asset_location_id","external_id","sid","storm_name",
+    "iso_time","distance_km","track_latitude","track_longitude",
+    "nature","track_type","wmo_agency","wmo_wind_knots",
+    "wmo_pressure_hpa","usa_agency","usa_wind_knots","usa_pressure_hpa",
+)
+
 
 def haversine_km(lat1,lon1,lat2,lon2)->float:
     r=6371.0088
@@ -269,8 +286,8 @@ def asset_storm_context(
                     "usa_pressure_hpa":None if pd.isna(row["usa_pres"]) else float(row["usa_pres"]),
                 })
 
-    nearest=pd.DataFrame(nearest_rows)
-    timeline=pd.DataFrame(timeline_rows)
+    nearest=pd.DataFrame(nearest_rows,columns=NEAREST_COLUMNS)
+    timeline=pd.DataFrame(timeline_rows,columns=TIMELINE_COLUMNS)
     if not nearest.empty:
         nearest=nearest.sort_values(
             ["asset_location_id","season","sid"]
