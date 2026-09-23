@@ -46,5 +46,22 @@ copdem-plan:
 copdem-run:
 	python scripts/run_copdem_local.py
 
+osm-network:
+	python scripts/prepare_osm_network_local.py
+
+route-endpoints:
+	@test -n "$(FILE)" || (echo "Usage: make -f Makefile.local route-endpoints FILE=/secure/path/endpoints.csv" && exit 2)
+	python scripts/import_route_endpoints.py --csv "$(FILE)"
+
+route-dependencies:
+	@test -n "$(FILE)" || (echo "Usage: make -f Makefile.local route-dependencies FILE=/secure/path/dependencies.csv" && exit 2)
+	python scripts/import_route_dependencies.py --csv "$(FILE)"
+
+osm-routes:
+	python scripts/run_osm_routes_local.py
+
+route-flood:
+	python scripts/run_route_flood_exposure_local.py --return-period 100
+
 local-test:
-	pytest -q tests/test_local_store.py tests/test_local_assets.py tests/test_era5_local.py tests/test_jrc_flood.py tests/test_jrc_local.py tests/test_jrc_lineage.py tests/test_chirps.py tests/test_chirps_local.py tests/test_dem_context.py tests/test_copdem_local.py tests/test_copdem_lineage.py tests/test_public_boundary.py
+	pytest -q tests/test_local_store.py tests/test_local_assets.py tests/test_era5_local.py tests/test_jrc_flood.py tests/test_jrc_local.py tests/test_jrc_lineage.py tests/test_chirps.py tests/test_chirps_local.py tests/test_dem_context.py tests/test_copdem_local.py tests/test_copdem_lineage.py tests/test_osm_local.py tests/test_logistics.py tests/test_logistics_directed.py tests/test_route_flood_local.py tests/test_public_boundary.py
