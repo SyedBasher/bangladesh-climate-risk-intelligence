@@ -85,6 +85,8 @@ See:
 - `src/clr/era5_soil_moisture_local.py` — ERA5-Land seasonal soil-moisture anomalies
 - `src/clr/aqueduct_local.py` — WRI Aqueduct 4.0 basin water-stress context
 - `src/clr/ibtracs_local.py` — NOAA IBTrACS cyclone-track proximity, intensity context, and event timelines
+- `src/clr/worldpop_local.py` — WorldPop Global2 population context around asset radii
+- `src/clr/ghsl_built_local.py` — GHSL total/non-residential built-environment context
 - `src/clr/intelligence.py` — transparent second-/third-order exposure logic
 - `src/clr/portfolio.py` — bank/insurer portfolio accumulation and concentration
 - `src/clr/live_integration.py` — production source gates and provenance controls
