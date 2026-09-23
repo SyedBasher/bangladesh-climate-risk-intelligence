@@ -139,7 +139,7 @@ create table if not exists clr_private.asset_indicator_source (
     asset_indicator_id bigint not null references clr_private.asset_indicator(asset_indicator_id) on delete cascade,
     source_artifact_id uuid not null references clr_private.source_artifact(source_artifact_id),
     source_role text not null check (source_role in (
-        'PRIMARY','DEPTH','PERMANENT_WATER_MASK','SPURIOUS_DEPTH_MASK','TILE_EXTENTS','TARGET_SERIES','BASELINE_SERIES','SOURCE_PACKAGE','DEM_RASTER','GFM_EVENT_SERIES','FFWC_STATION_METADATA','FFWC_WATER_LEVEL','IBTRACS_TRACK','AUXILIARY'
+        'PRIMARY','DEPTH','PERMANENT_WATER_MASK','SPURIOUS_DEPTH_MASK','TILE_EXTENTS','TARGET_SERIES','BASELINE_SERIES','SOURCE_PACKAGE','DEM_RASTER','GFM_EVENT_SERIES','FFWC_STATION_METADATA','FFWC_WATER_LEVEL','IBTRACS_TRACK','WORLDPOP_POPULATION','GHSL_BUILT_TOTAL','GHSL_BUILT_NRES','AUXILIARY'
     )),
     primary key (asset_indicator_id, source_artifact_id, source_role)
 );
