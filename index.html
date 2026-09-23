@@ -121,6 +121,7 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
         <span class="badge"><span class="dot"></span> Water stress &amp; drought pipeline</span>
         <span class="badge"><span class="dot"></span> Cyclone context pipeline</span>
         <span class="badge"><span class="dot"></span> Exposure context pipeline</span>
+        <span class="badge"><span class="dot"></span> Surface water &amp; land pipeline</span>
       </div>
     </div>
     <aside class="demo-note">
@@ -203,6 +204,18 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
         <div class="desc">Illustrative GHSL 2020 built-up surface within 5 km; not property value or factory floor area.</div>
         <div class="source">GHSL GHS-BUILT-S R2023A · synthetic value</div>
       </article>
+      <article class="metric flood">
+        <div class="kicker">Surface-water context</div>
+        <div class="value">420 m</div>
+        <div class="desc">Illustrative distance to JRC GSW v1.5 water with long-run occurrence ≥90%; not flood frequency.</div>
+        <div class="source">JRC Global Surface Water v1.5 · synthetic value</div>
+      </article>
+      <article class="metric terrain">
+        <div class="kicker">Land-cover context</div>
+        <div class="value">Built-up</div>
+        <div class="desc">Illustrative ESA WorldCover 2021 site class; surrounding class shares remain separate.</div>
+        <div class="source">ESA WorldCover 2021 v200 · synthetic value</div>
+      </article>
     </div>
   </section>
 
@@ -226,6 +239,7 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
           <li>Meteorological drought, soil-moisture anomaly and basin water stress</li>
           <li>Historical cyclone-track proximity and storm-center intensity context</li>
           <li>Residential population and built/non-residential settlement context</li>
+          <li>Long-run surface-water history and surrounding land-cover context</li>
           <li>DSM elevation and local surface context</li>
         </ul>
       </article>
@@ -269,14 +283,14 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
     <div class="next-card">
       <div>
         <div class="next-label">Next build</div>
-        <h3>Surface Water &amp; Land Context</h3>
-        <p>Add persistent surface-water occurrence and land-cover context so flood, drought and site-access evidence can be interpreted alongside nearby water bodies and the surrounding land surface.</p>
+        <h3>Compound Hazard &amp; Cross-Asset Intelligence</h3>
+        <p>Use the existing hazard, logistics, exposure and event layers to identify transparent co-occurrence, shared bottlenecks and portfolio concentrations without collapsing them into a composite risk score.</p>
       </div>
       <div class="next-box">
-        <div>JRC Global Surface Water occurrence</div>
-        <div>Distance to persistent surface water</div>
-        <div>ESA WorldCover land context</div>
-        <div>No confusion with flood frequency</div>
+        <div>Heat + drought co-occurrence</div>
+        <div>Flood + route exposure intersections</div>
+        <div>Shared hazard / logistics concentrations</div>
+        <div>No composite score or hidden weighting</div>
       </div>
     </div>
   </section>
@@ -312,6 +326,8 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
           <tr><td>Drought / water stress</td><td>CHIRPS + ERA5-Land + WRI Aqueduct</td><td>Precipitation and soil-moisture anomalies plus structural basin competition, not factory water shortage</td></tr>
           <tr><td>Cyclone context</td><td>NOAA IBTrACS</td><td>Historical best-track proximity and storm-center intensity context, not site wind, surge or damage</td></tr>
           <tr><td>Exposure context</td><td>WorldPop + GHSL</td><td>Modeled residential population and surrounding built/non-residential surface, not workforce, property value or replacement cost</td></tr>
+          <tr><td>Surface water</td><td>JRC Global Surface Water v1.5</td><td>Long-run open-water occurrence/recurrence and distance context, not flood probability or flood frequency</td></tr>
+          <tr><td>Land cover</td><td>ESA WorldCover 2021 v200</td><td>10 m land-cover class and surrounding composition, not zoning, ownership or property value</td></tr>
         </tbody>
       </table>
     </div>
