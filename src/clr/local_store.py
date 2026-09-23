@@ -198,35 +198,35 @@ def register_source_file(
     digest = sha256_file(artifact)
     retrieved_at = retrieved_at or utc_now()
     relative = artifact.relative_to(root).as_posix()
-    artifact_id = str(uuid.uuid4())
-
-    record = {
-        "source_artifact_id": artifact_id,
-        "source_id": source_id,
-        "provider": provider,
-        "provider_version": provider_version,
-        "local_path": relative,
-        "sha256": digest,
-        "byte_size": artifact.stat().st_size,
-        "media_type": media_type,
-        "retrieved_at": retrieved_at,
-        "valid_time_start": valid_time_start,
-        "valid_time_end": valid_time_end,
-        "retrieval_status": retrieval_status,
-        "note": note,
-    }
-    manifest_path, manifest_sha = write_source_manifest(root, record)
-    record["request_manifest_path"] = manifest_path.relative_to(root).as_posix()
-    record["request_manifest_sha256"] = manifest_sha
 
     with connect_catalog(root) as conn:
         existing = conn.execute(
-            "SELECT source_artifact_id FROM source_artifact WHERE source_id=? AND sha256=?",
+            "SELECT * FROM source_artifact WHERE source_id=? AND sha256=?",
             (source_id, digest),
         ).fetchone()
         if existing:
-            record["source_artifact_id"] = existing["source_artifact_id"]
-            return record
+            return dict(existing)
+
+        artifact_id = str(uuid.uuid4())
+        record = {
+            "source_artifact_id": artifact_id,
+            "source_id": source_id,
+            "provider": provider,
+            "provider_version": provider_version,
+            "local_path": relative,
+            "sha256": digest,
+            "byte_size": artifact.stat().st_size,
+            "media_type": media_type,
+            "retrieved_at": retrieved_at,
+            "valid_time_start": valid_time_start,
+            "valid_time_end": valid_time_end,
+            "retrieval_status": retrieval_status,
+            "note": note,
+        }
+        manifest_path, manifest_sha = write_source_manifest(root, record)
+        record["request_manifest_path"] = manifest_path.relative_to(root).as_posix()
+        record["request_manifest_sha256"] = manifest_sha
+
         conn.execute(
             """
             INSERT INTO source_artifact(
