@@ -80,6 +80,10 @@ See:
 - `src/clr/route_flood_local.py` — JRC flood exposure overlay for baseline routes
 - `src/clr/gfm_local.py` — Sentinel-1 GFM observed-flood event evidence and JRC comparison
 - `src/clr/ffwc_local.py` — official FFWC/BWDB station snapshot ingestion and nearest-gauge event context
+- `src/clr/drought.py` — transparent SPI-3/SPI-12 precipitation-drought calculations
+- `src/clr/drought_local.py` — CHIRPS drought production and source lineage
+- `src/clr/era5_soil_moisture_local.py` — ERA5-Land seasonal soil-moisture anomalies
+- `src/clr/aqueduct_local.py` — WRI Aqueduct 4.0 basin water-stress context
 - `src/clr/intelligence.py` — transparent second-/third-order exposure logic
 - `src/clr/portfolio.py` — bank/insurer portfolio accumulation and concentration
 - `src/clr/live_integration.py` — production source gates and provenance controls
