@@ -16,7 +16,7 @@ from .local_store import (
     utc_now,
 )
 from .logistics import baseline_route, edge_disjoint_count
-from .osm_local import load_graph, nearest_network_node, route_dependencies
+from .osm_local import NetworkNodeIndex, load_graph, route_dependencies
 
 
 def latest_registered_network(root: str | Path) -> dict:
@@ -87,6 +87,7 @@ def analyze_baseline_routes(
     network=latest_registered_network(root)
     nodes=pd.read_parquet(network["node_path"])
     G=load_graph(network["edge_path"])
+    node_index=NetworkNodeIndex(nodes)
     deps=route_dependencies(root,tenant_key=tenant_key)
     if not deps:
         raise ValueError("No explicit asset-route dependencies are available")
@@ -95,12 +96,12 @@ def analyze_baseline_routes(
     route_rows=[]
     for dep in deps:
         analysis_id=str(uuid.uuid4())
-        origin=nearest_network_node(
-            nodes,float(dep["asset_latitude"]),float(dep["asset_longitude"]),
+        origin=node_index.nearest(
+            float(dep["asset_latitude"]),float(dep["asset_longitude"]),
             max_snap_m=max_snap_m,
         )
-        dest=nearest_network_node(
-            nodes,float(dep["endpoint_latitude"]),float(dep["endpoint_longitude"]),
+        dest=node_index.nearest(
+            float(dep["endpoint_latitude"]),float(dep["endpoint_longitude"]),
             max_snap_m=max_snap_m,
         )
 
