@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import tempfile
-import zipfile
 from pathlib import Path
 
 import pandas as pd
@@ -78,22 +76,10 @@ def register_aqueduct_snapshot(
     )
 
 
-def _materialize_spatial_file(path:Path):
-    if path.suffix.lower()!=".zip":
-        return None,path
-    td=tempfile.TemporaryDirectory()
-    with zipfile.ZipFile(path) as z:
-        members=[
-            m for m in z.namelist()
-            if Path(m).suffix.lower() in {".gpkg",".geojson",".json"}
-        ]
-        if len(members)!=1:
-            td.cleanup()
-            raise ValueError(
-                f"Aqueduct ZIP must contain exactly one GPKG/GeoJSON file; found {members}"
-            )
-        z.extract(members[0],td.name)
-        return td,Path(td.name)/members[0]
+def _spatial_uri(path:Path):
+    if path.suffix.lower()==".zip":
+        return f"zip://{path.as_posix()}"
+    return str(path)
 
 
 def read_aqueduct_features(
@@ -111,43 +97,39 @@ def read_aqueduct_features(
     if not assets:
         raise ValueError("No assets supplied")
     path=Path(source_path).resolve()
-    holder,spatial=_materialize_spatial_file(path)
-    try:
-        layers=list(fiona.listlayers(spatial))
-        if layer is None:
-            if len(layers)!=1:
-                raise ValueError(
-                    f"Aqueduct source has multiple layers {layers}; provide --layer explicitly"
-                )
-            layer=layers[0]
-        elif layer not in layers:
-            raise ValueError(f"Aqueduct layer {layer!r} not found; available: {layers}")
+    spatial=_spatial_uri(path)
+    layers=list(fiona.listlayers(spatial))
+    if layer is None:
+        if len(layers)!=1:
+            raise ValueError(
+                f"Aqueduct source has multiple layers {layers}; provide --layer explicitly"
+            )
+        layer=layers[0]
+    elif layer not in layers:
+        raise ValueError(f"Aqueduct layer {layer!r} not found; available: {layers}")
 
-        lats=[float(a["latitude"]) for a in assets]
-        lons=[float(a["longitude"]) for a in assets]
-        bbox=(
-            min(lons)-pad_deg,min(lats)-pad_deg,
-            max(lons)+pad_deg,max(lats)+pad_deg,
-        )
-        features=[]
-        with fiona.open(spatial,layer=layer) as src:
-            props=set(src.schema.get("properties",{}))
-            missing=REQUIRED_FIELDS-props
-            if missing:
-                raise ValueError(f"Aqueduct layer missing required fields {sorted(missing)}")
-            for feature in src.filter(bbox=bbox):
-                geometry=feature.get("geometry")
-                if not geometry:
-                    continue
-                geom=shape(geometry)
-                if not geom.is_valid:
-                    raise ValueError("Aqueduct source contains invalid geometry in candidate area")
-                p=dict(feature.get("properties") or {})
-                features.append({"geometry":geom,"properties":p})
-        return features,layer
-    finally:
-        if holder is not None:
-            holder.cleanup()
+    lats=[float(a["latitude"]) for a in assets]
+    lons=[float(a["longitude"]) for a in assets]
+    bbox=(
+        min(lons)-pad_deg,min(lats)-pad_deg,
+        max(lons)+pad_deg,max(lats)+pad_deg,
+    )
+    features=[]
+    with fiona.open(spatial,layer=layer) as src:
+        props=set(src.schema.get("properties",{}))
+        missing=REQUIRED_FIELDS-props
+        if missing:
+            raise ValueError(f"Aqueduct layer missing required fields {sorted(missing)}")
+        for feature in src.filter(bbox=bbox):
+            geometry=feature.get("geometry")
+            if not geometry:
+                continue
+            geom=shape(geometry)
+            if not geom.is_valid:
+                raise ValueError("Aqueduct source contains invalid geometry in candidate area")
+            p=dict(feature.get("properties") or {})
+            features.append({"geometry":geom,"properties":p})
+    return features,layer
 
 
 def match_assets_to_aqueduct(
