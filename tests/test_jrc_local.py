@@ -11,6 +11,7 @@ from clr.jrc_flood import (
     raw_depth_filename,
     resolve_tile,
     spurious_depth_filename,
+    tile_prefix_from_feature,
     tile_prefix_from_properties,
 )
 from clr.jrc_local import artifact_plan, extract_flood_rows
@@ -159,3 +160,15 @@ def test_permanent_water_blocks_published_depth(tmp_path):
     assert row["raw_depth_m"] == pytest.approx(1.2)
     assert pd.isna(row["published_depth_m"])
     assert row["null_reason"] == "PERMANENT_WATER_MASK"
+
+
+def test_tile_prefix_can_use_numeric_id_and_tile_geometry():
+    feature = {
+        "type": "Feature",
+        "properties": {"ID": 321},
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [[[80,20],[90,20],[90,30],[80,30],[80,20]]],
+        },
+    }
+    assert tile_prefix_from_feature(feature) == "ID321_N30_E80"
