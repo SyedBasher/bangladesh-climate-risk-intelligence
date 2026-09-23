@@ -54,6 +54,34 @@ def test_register_source_file_uses_relative_path_and_hash(tmp_path):
         assert dbrow["sha256"] == row["sha256"]
 
 
+def test_source_registration_is_idempotent_for_same_bytes(tmp_path):
+    root = tmp_path / "private_data"
+    initialize_workspace(root, schema_path())
+    source = root / "raw" / "era5_land" / "same.nc"
+    source.write_bytes(b"same bytes")
+
+    first = register_source_file(
+        root,
+        source_id="ERA5L_DAILY",
+        provider="Copernicus CDS",
+        artifact_path=source,
+        retrieved_at="2026-09-23T00:00:00+00:00",
+    )
+    second = register_source_file(
+        root,
+        source_id="ERA5L_DAILY",
+        provider="Copernicus CDS",
+        artifact_path=source,
+        retrieved_at="2026-09-24T00:00:00+00:00",
+    )
+    assert first["source_artifact_id"] == second["source_artifact_id"]
+    with connect_catalog(root) as conn:
+        count = conn.execute(
+            "SELECT count(*) AS n FROM source_artifact WHERE source_id='ERA5L_DAILY'"
+        ).fetchone()["n"]
+        assert count == 1
+
+
 def test_source_registration_rejects_file_outside_workspace(tmp_path):
     root = tmp_path / "private_data"
     initialize_workspace(root, schema_path())
