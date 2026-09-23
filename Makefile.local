@@ -7,5 +7,17 @@ private-backup:
 boundary-check:
 	python scripts/check_public_boundary.py
 
+assets-import:
+	@test -n "$(FILE)" || (echo "Usage: make -f Makefile.local assets-import FILE=/secure/path/assets.csv" && exit 2)
+	python scripts/import_private_assets.py --csv "$(FILE)"
+
+era5-plan:
+	@test -n "$(YEAR)" || (echo "Usage: make -f Makefile.local era5-plan YEAR=2025" && exit 2)
+	python scripts/plan_era5_local.py --year "$(YEAR)"
+
+era5-run:
+	@test -n "$(YEAR)" || (echo "Usage: make -f Makefile.local era5-run YEAR=2025" && exit 2)
+	python scripts/run_era5_local.py --year "$(YEAR)"
+
 local-test:
-	pytest -q tests/test_local_store.py tests/test_public_boundary.py
+	pytest -q tests/test_local_store.py tests/test_local_assets.py tests/test_era5_local.py tests/test_public_boundary.py
