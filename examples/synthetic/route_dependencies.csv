@@ -1,0 +1,3 @@
+external_system,external_id,endpoint_key,relationship,shipment_share,valid_from,valid_to
+SYNTH,SYNTH_FACTORY_A,SYNTH_PORT_A,PRIMARY,0.8,,
+SYNTH,SYNTH_FACTORY_A,SYNTH_DEPOT_A,SECONDARY,0.2,,
