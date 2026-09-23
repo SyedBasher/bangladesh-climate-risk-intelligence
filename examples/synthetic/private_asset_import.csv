@@ -1,0 +1,3 @@
+external_system,external_id,asset_type,latitude,longitude,coordinate_source,coordinate_precision_m,site_identity_grade,coordinate_status,valid_from,valid_to
+SYNTH,SYNTH_FACTORY_A,FACTORY,24.0000,90.4000,SYNTHETIC,10,EXACT_SITE,RESOLVED,,
+SYNTH,SYNTH_FACTORY_B,FACTORY,23.9000,90.3000,SYNTHETIC,100,PROBABLE_SITE,RESOLVED,,
