@@ -1,4 +1,6 @@
 # Private/raw/derived data
+private_data/
+local_data/
 data/
 raw/
 processed/
@@ -9,10 +11,15 @@ outputs/
 build/
 cache/
 artifacts/
+backups/
 
 # Geospatial / database binaries
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
+*.sqlite-wal
+*.sqlite-shm
 *.sqlite3
 *.duckdb
 *.parquet

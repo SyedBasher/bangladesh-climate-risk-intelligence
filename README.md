@@ -4,6 +4,23 @@ Public code, schemas, and methodology for a location-level physical climate and 
 
 The project is designed to connect geocoded assets with transparent hazard, exposure, logistics, and portfolio diagnostics while preserving source provenance and avoiding opaque composite risk scores.
 
+## Operating architecture
+
+```
+PUBLIC GITHUB
+code + parsers + tests + schemas + methodology + CI
+        |
+        v
+PRIVATE LOCAL DATA
+SQLite + Parquet + raw source snapshots
+        |
+        v later
+HOSTED DATABASE
+Supabase / Neon / another PostgreSQL provider
+```
+
+The current operational data layer is local/private. Hosted PostgreSQL is a later deployment step, not a prerequisite.
+
 ## What is public here
 
 - processing and analytical code
@@ -25,7 +42,21 @@ The repository intentionally excludes:
 - proprietary derived databases and production analytical outputs
 - credentials, API keys, tokens, and private source snapshots
 
-Those components are maintained outside GitHub in controlled data/storage infrastructure.
+Those components are maintained outside GitHub.
+
+## Local private workspace
+
+Initialize the gitignored private workspace with:
+
+```bash
+python scripts/init_private_workspace.py
+```
+
+The local catalog uses SQLite; larger analytical tables use Parquet; source snapshots remain immutable files with registered SHA-256 provenance.
+
+See:
+- `docs/LOCAL_PRIVATE_DATA_PLANE.md`
+- `docs/LOCAL_BACKUP_POLICY.md`
 
 ## Core design principles
 
@@ -47,14 +78,15 @@ Those components are maintained outside GitHub in controlled data/storage infras
 - `src/clr/intelligence.py` — transparent second-/third-order exposure logic
 - `src/clr/portfolio.py` — bank/insurer portfolio accumulation and concentration
 - `src/clr/live_integration.py` — production source gates and provenance controls
+- `src/clr/local_store.py` — local SQLite/Parquet private-data layer
 
 ## Data boundary
 
-See [`docs/PUBLIC_DATA_BOUNDARY.md`](docs/PUBLIC_DATA_BOUNDARY.md).
+See `docs/PUBLIC_DATA_BOUNDARY.md`.
 
 ## Status
 
-The public repository contains the software/methodology baseline. Production databases and live asset intelligence are maintained separately.
+The public repository contains the software/methodology baseline. Real data and production intelligence remain private.
 
 ## License
 

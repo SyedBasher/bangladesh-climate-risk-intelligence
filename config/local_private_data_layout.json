@@ -1,0 +1,43 @@
+{
+  "schema_version": "0.1.0",
+  "workspace_root": "private_data",
+  "catalog": "catalog/climate_risk.sqlite",
+  "layers": {
+    "raw": [
+      "era5_land",
+      "chirps",
+      "jrc_flood",
+      "gfm",
+      "ffwc",
+      "dem",
+      "osm"
+    ],
+    "normalized": [
+      "assets",
+      "admin",
+      "climate",
+      "roads",
+      "events"
+    ],
+    "indicators": [
+      "asset",
+      "admin",
+      "portfolio",
+      "logistics"
+    ],
+    "manifests": [
+      "source_vintages"
+    ],
+    "outputs": [
+      "reports",
+      "qa"
+    ],
+    "backups": [
+      "catalog"
+    ]
+  },
+  "parquet_partition_convention": "layer/dataset/key=value/key=value/part-*.parquet",
+  "raw_snapshot_rule": "immutable-after-registration",
+  "catalog_rule": "SQLite stores metadata, lineage and relational state; large analytical data remain in Parquet/raw files",
+  "git_policy": "entire workspace root is excluded from Git"
+}
