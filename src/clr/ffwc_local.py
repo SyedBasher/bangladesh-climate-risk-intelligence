@@ -134,10 +134,15 @@ def import_observation_snapshot(
             danger=None if pd.isna(danger) else float(danger)
             conn.execute(
                 """
-                INSERT OR IGNORE INTO hydro_observation(
+                INSERT INTO hydro_observation(
                     provider,station_id,observed_at,water_level_m,danger_level_m,
                     source_artifact_id,quality_flag
                 ) VALUES(?,?,?,?,?,?,?)
+                ON CONFLICT(provider,station_id,observed_at) DO UPDATE SET
+                    water_level_m=excluded.water_level_m,
+                    danger_level_m=excluded.danger_level_m,
+                    source_artifact_id=excluded.source_artifact_id,
+                    quality_flag=excluded.quality_flag
                 """,
                 (
                     PROVIDER,sid,str(row["observed_at"]),water,danger,
