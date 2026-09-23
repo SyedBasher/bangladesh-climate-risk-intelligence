@@ -23,8 +23,10 @@ def test_public_index_shows_all_current_physical_layers():
         assert required in text
 
 
-def test_public_index_marks_logistics_as_current_and_event_validation_next():
+def test_public_index_marks_observed_flood_current_and_water_stress_next():
     text = (ROOT / "index.html").read_text(encoding="utf-8")
     assert "Logistics pipeline" in text
-    assert "Observed Flood &amp; Event Validation" in text
+    assert "Observed flood pipeline" in text
+    assert "GFM + FFWC" in text
+    assert "Water Stress &amp; Drought" in text
     assert "Next build" in text
