@@ -308,7 +308,13 @@ def summarize_gfm_event(frame:pd.DataFrame, assets:list[dict]|None=None)->pd.Dat
 
 
 def evidence_relation(jrc_depth_m,eligible_count:int,positive_count:int)->str:
-    jrc_exposed=jrc_depth_m is not None and float(jrc_depth_m)>0
+    if jrc_depth_m is None:
+        if positive_count>0:
+            return "OBSERVED_FLOOD_MODELLED_POINT_VALUE_UNAVAILABLE"
+        if eligible_count>0:
+            return "NO_GFM_DETECTION_MODELLED_POINT_VALUE_UNAVAILABLE"
+        return "NO_COMPARABLE_EVENT_EVIDENCE"
+    jrc_exposed=float(jrc_depth_m)>0
     if positive_count>0 and jrc_exposed:
         return "MODELLED_AND_OBSERVED"
     if positive_count>0 and not jrc_exposed:
@@ -318,6 +324,91 @@ def evidence_relation(jrc_depth_m,eligible_count:int,positive_count:int)->str:
     if eligible_count>0:
         return "NO_GFM_DETECTION_AND_NO_MODELLED_POINT_DEPTH"
     return "NO_ELIGIBLE_GFM_EVIDENCE"
+
+
+def attach_jrc_event_relation(
+    root:str|Path,
+    summary:pd.DataFrame,
+    *,
+    return_period:int=100,
+)->pd.DataFrame:
+    out=summary.copy()
+    depths=[]; source_ids=[]; relations=[]
+    indicator_id=f"flood_rp{int(return_period)}_depth_m"
+    with connect_catalog(root) as conn:
+        for row in out.to_dict(orient="records"):
+            jrc=conn.execute(
+                """
+                SELECT value_numeric,source_artifact_id,quality_flag,null_reason
+                FROM asset_indicator
+                WHERE asset_location_id=? AND indicator_id=?
+                ORDER BY calculated_at DESC,asset_indicator_id DESC
+                LIMIT 1
+                """,
+                (row["asset_location_id"],indicator_id),
+            ).fetchone()
+            depth=None if not jrc or jrc["value_numeric"] is None else float(jrc["value_numeric"])
+            depths.append(depth)
+            source_ids.append(None if not jrc else jrc["source_artifact_id"])
+            relations.append(evidence_relation(
+                depth,
+                int(row["gfm_eligible_acquisition_count"]),
+                int(row["gfm_flood_positive_acquisition_count"]),
+            ))
+    out[f"jrc_rp{return_period}_depth_m"]=depths
+    out["jrc_source_artifact_id"]=source_ids
+    out["jrc_gfm_evidence_relation"]=relations
+    return out
+
+
+def insert_event_relation_indicators(
+    root:str|Path,
+    summary:pd.DataFrame,
+    *,
+    gfm_source_artifact_id:str,
+    start:str,
+    end:str,
+    run_id:str,
+    return_period:int=100,
+)->int:
+    n=0
+    with connect_catalog(root) as conn:
+        for row in summary.to_dict(orient="records"):
+            cur=conn.execute(
+                """
+                INSERT INTO asset_indicator(
+                    tenant_key,asset_location_id,indicator_id,value_numeric,value_text,
+                    unit,value_class,measurement_basis,source_artifact_id,method_version,
+                    period_start,period_end,quality_flag,null_reason,run_id,calculated_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    row["tenant_key"],row["asset_location_id"],
+                    f"jrc_rp{return_period}_gfm_event_evidence_relation",
+                    None,row["jrc_gfm_evidence_relation"],None,"CALCULATED",
+                    "CALCULATED_FROM_MODELLED_AND_SATELLITE_OBSERVED_FLOOD",
+                    gfm_source_artifact_id,"JRC_GFM_EVENT_RELATION_0.1",
+                    start,end,row["quality_flag"],None,run_id,utc_now(),
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO asset_indicator_source(
+                    asset_indicator_id,source_artifact_id,source_role
+                ) VALUES(?,?,?)
+                """,(cur.lastrowid,gfm_source_artifact_id,"GFM_EVENT_SERIES")
+            )
+            if row.get("jrc_source_artifact_id"):
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO asset_indicator_source(
+                        asset_indicator_id,source_artifact_id,source_role
+                    ) VALUES(?,?,?)
+                    """,(cur.lastrowid,row["jrc_source_artifact_id"],"PRIMARY")
+                )
+            n+=1
+        conn.commit()
+    return n
 
 
 def insert_gfm_indicators(
