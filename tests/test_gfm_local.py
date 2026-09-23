@@ -2,6 +2,8 @@ import pandas as pd
 import pytest
 
 import clr.gfm_local as gfm
+from clr.local_assets import accepted_assets, import_asset_rows
+from clr.local_store import connect_catalog, initialize_workspace, start_processing_run
 
 
 ASSETS = [
@@ -39,18 +41,18 @@ def test_gfm_masks_define_eligible_acquisitions_but_advisory_does_not(monkeypatc
     frame=gfm.sample_gfm_items([_item()],ASSETS)
     by_id={r["external_id"]:r for r in frame.to_dict(orient="records")}
 
-    assert by_id["A"]["eligible"] is True
-    assert by_id["A"]["flood_positive"] is True
-    assert by_id["A"]["advisory_flagged"] is True
+    assert bool(by_id["A"]["eligible"]) is True
+    assert bool(by_id["A"]["flood_positive"]) is True
+    assert bool(by_id["A"]["advisory_flagged"]) is True
 
-    assert by_id["B"]["eligible"] is False
-    assert by_id["B"]["flood_positive"] is False
+    assert bool(by_id["B"]["eligible"]) is False
+    assert bool(by_id["B"]["flood_positive"]) is False
 
-    assert by_id["C"]["eligible"] is False
-    assert by_id["C"]["flood_positive"] is False
+    assert bool(by_id["C"]["eligible"]) is False
+    assert bool(by_id["C"]["flood_positive"]) is False
 
-    assert by_id["D"]["eligible"] is True
-    assert by_id["D"]["flood_positive"] is False
+    assert bool(by_id["D"]["eligible"]) is True
+    assert bool(by_id["D"]["flood_positive"]) is False
 
 
 def test_gfm_rate_denominator_is_eligible_acquisitions_not_days(monkeypatch):
@@ -108,3 +110,95 @@ def test_no_stac_items_still_preserves_each_asset_as_zero_evidence():
 )
 def test_jrc_gfm_relation_is_bounded(depth,eligible,positive,expected):
     assert gfm.evidence_relation(depth,eligible,positive)==expected
+
+
+def _schema_path():
+    from pathlib import Path
+    return Path(__file__).resolve().parents[1] / "migrations" / "000_local_private_data_plane.sql"
+
+
+def test_jrc_gfm_relation_carries_full_jrc_lineage(tmp_path):
+    root=tmp_path/"private_data"
+    initialize_workspace(root,_schema_path())
+    import_asset_rows(root,[{
+        "external_system":"SYNTH","external_id":"A","asset_type":"FACTORY",
+        "latitude":24.0,"longitude":90.4,"coordinate_source":"SYNTHETIC",
+        "site_identity_grade":"EXACT_SITE","coordinate_status":"RESOLVED",
+    }])
+    asset=accepted_assets(root)[0]
+    source_ids={
+        "DEPTH":"00000000-0000-0000-0000-000000000001",
+        "PERMANENT_WATER_MASK":"00000000-0000-0000-0000-000000000002",
+        "SPURIOUS_DEPTH_MASK":"00000000-0000-0000-0000-000000000003",
+        "TILE_EXTENTS":"00000000-0000-0000-0000-000000000004",
+        "GFM":"00000000-0000-0000-0000-000000000005",
+    }
+    with connect_catalog(root) as conn:
+        for role,sid in source_ids.items():
+            conn.execute(
+                """
+                INSERT INTO source_artifact(
+                    source_artifact_id,source_id,provider,provider_version,local_path,
+                    sha256,byte_size,retrieved_at,retrieval_status,note
+                ) VALUES(?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    sid,role,"SYNTH","v1",f"raw/{role}",
+                    role.lower()[0]*64,1,"2026-09-23T00:00:00+00:00",
+                    "COMPLETE","synthetic",
+                ),
+            )
+        cur=conn.execute(
+            """
+            INSERT INTO asset_indicator(
+                tenant_key,asset_location_id,indicator_id,value_numeric,value_text,
+                unit,value_class,measurement_basis,source_artifact_id,method_version,
+                period_start,period_end,quality_flag,null_reason,run_id,calculated_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                "INTERNAL",asset["asset_location_id"],"flood_rp100_depth_m",0.8,None,
+                "m","SOURCE","HYDROLOGICAL_HYDRODYNAMIC_MODEL",source_ids["DEPTH"],
+                "TEST",None,None,"OK",None,None,"2026-09-23T00:00:00+00:00",
+            ),
+        )
+        indicator_pk=cur.lastrowid
+        for role in ("DEPTH","PERMANENT_WATER_MASK","SPURIOUS_DEPTH_MASK","TILE_EXTENTS"):
+            conn.execute(
+                "INSERT INTO asset_indicator_source(asset_indicator_id,source_artifact_id,source_role) VALUES(?,?,?)",
+                (indicator_pk,source_ids[role],role),
+            )
+        conn.commit()
+
+    summary=pd.DataFrame([{
+        "tenant_key":"INTERNAL","asset_location_id":asset["asset_location_id"],
+        "external_id":"A","gfm_eligible_acquisition_count":2,
+        "gfm_flood_positive_acquisition_count":1,
+        "gfm_advisory_flagged_eligible_count":0,
+        "gfm_flood_positive_acquisition_rate":0.5,
+        "quality_flag":"OK",
+    }])
+    attached=gfm.attach_jrc_event_relation(root,summary,return_period=100)
+    assert attached.iloc[0]["jrc_gfm_evidence_relation"]=="MODELLED_AND_OBSERVED"
+
+    run_id=start_processing_run(root,pipeline_name="gfm_relation_test",pipeline_version="0.1")
+    assert gfm.insert_event_relation_indicators(
+        root,attached,gfm_source_artifact_id=source_ids["GFM"],
+        start="2025-07-15",end="2025-07-20",run_id=run_id,return_period=100,
+    )==1
+
+    with connect_catalog(root) as conn:
+        rel=conn.execute(
+            "SELECT asset_indicator_id FROM asset_indicator WHERE indicator_id='jrc_rp100_gfm_event_evidence_relation'"
+        ).fetchone()
+        roles={
+            x["source_role"]
+            for x in conn.execute(
+                "SELECT source_role FROM asset_indicator_source WHERE asset_indicator_id=?",
+                (rel["asset_indicator_id"],),
+            ).fetchall()
+        }
+    assert roles=={
+        "GFM_EVENT_SERIES","DEPTH","PERMANENT_WATER_MASK",
+        "SPURIOUS_DEPTH_MASK","TILE_EXTENTS",
+    }
