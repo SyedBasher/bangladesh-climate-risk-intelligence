@@ -14,7 +14,8 @@ dependencies = [
   "shapely>=2.0",
   "pyproj>=3.6",
   "networkx>=3.4",
-  "requests>=2.32"
+  "requests>=2.32",
+  "pyarrow>=17"
 ]
 
 [tool.setuptools]
