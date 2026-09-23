@@ -54,7 +54,9 @@ def hazard_conditioned_connectivity(G, origin, destination, weight="length_m", b
     return {"baseline_length":base["length"],"hazard_free_route_exists":exists,"hazard_avoiding_length":None if alt is None else alt["length"],"hazard_detour_ratio":ratio,"isolation_flag":not exists}
 
 def edge_disjoint_count(G, origin, destination, cap=10):
-    H=nx.Graph(); H.add_nodes_from(G.nodes); H.add_edges_from((u,v) for u,v in G.edges())
+    H=nx.DiGraph() if G.is_directed() else nx.Graph()
+    H.add_nodes_from(G.nodes)
+    H.add_edges_from((u,v) for u,v in G.edges())
     try:
         gen=nx.edge_disjoint_paths(H,origin,destination); n=0
         for _ in gen:
