@@ -158,8 +158,8 @@ def rainfall_extreme_metrics(
         "r95p_share_pct": 0.0 if prcptot == 0 else float(100.0 * r95p / prcptot),
         "r95p_days": float(very_wet.sum()),
         "r95_threshold_mm": p95,
-        "cdd_days": float(_max_spell(pd.Series(vals < WET_DAY_MM))),
-        "cwd_days": float(_max_spell(pd.Series(vals >= WET_DAY_MM))),
+        "calendar_cdd_days": float(_max_spell(pd.Series(vals < WET_DAY_MM))),
+        "calendar_cwd_days": float(_max_spell(pd.Series(vals >= WET_DAY_MM))),
     }
 
 
@@ -188,8 +188,8 @@ def summarize_daily_rainfall(
         "r95p_share_pct": "percent",
         "r95p_days": "days/year",
         "r95_threshold_mm": "mm/day",
-        "cdd_days": "days",
-        "cwd_days": "days",
+        "calendar_cdd_days": "days",
+        "calendar_cwd_days": "days",
     }
     results = []
     for indicator_id, value in metrics.items():
