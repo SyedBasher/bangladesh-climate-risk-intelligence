@@ -72,6 +72,23 @@ def retrieve_public_artifact(
     media_type: str,
 ) -> dict:
     root = Path(root).resolve()
+
+    # Reuse a previously registered, hash-verified artifact for the same
+    # source/version before making another network request.
+    with connect_catalog(root) as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM source_artifact
+            WHERE source_id=? AND provider_version=? AND retrieval_status='COMPLETE'
+            ORDER BY retrieved_at DESC
+            """,
+            (source_id, JRC_VERSION),
+        ).fetchall()
+    for row in rows:
+        cached = root / row["local_path"]
+        if cached.exists() and sha256_file(cached) == row["sha256"]:
+            return dict(row)
+
     tmp = root / "tmp" / filename
     if tmp.exists():
         tmp.unlink()
