@@ -205,7 +205,7 @@ create table if not exists clr_private.hydro_observation (
     danger_level_m double precision,
     source_artifact_id uuid references clr_private.source_artifact(source_artifact_id),
     quality_flag text not null default 'OFFICIAL_SOURCE',
-    unique(provider,station_id,observed_at,source_artifact_id)
+    unique(provider,station_id,observed_at)
 );
 
 create index if not exists hydro_observation_station_time_idx
