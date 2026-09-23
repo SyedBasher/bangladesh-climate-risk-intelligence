@@ -5,3 +5,4 @@ xarray>=2025.1
 netCDF4>=1.7
 rasterio>=1.4
 shapely>=2.0
+requests>=2.32
