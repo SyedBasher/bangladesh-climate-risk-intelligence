@@ -118,3 +118,23 @@ def accepted_assets(root: str | Path, tenant_key: str | None = None) -> list[dic
     sql += " ORDER BY tenant_key, external_system, external_id"
     with connect_catalog(root) as conn:
         return [dict(x) for x in conn.execute(sql, params).fetchall()]
+
+
+def coarse_climate_assets(root: str | Path, tenant_key: str | None = None) -> list[dict]:
+    """Resolved coordinates suitable for coarse gridded climate layers (roughly >=1 km)."""
+    sql = """
+        SELECT asset_location_id,tenant_key,external_system,external_id,asset_type,
+               latitude,longitude,coordinate_source,coordinate_precision_m,
+               site_identity_grade,coordinate_status
+        FROM asset_location
+        WHERE site_identity_grade IN ('EXACT_SITE','PROBABLE_SITE')
+          AND coordinate_status='RESOLVED'
+          AND (valid_to IS NULL OR valid_to > datetime('now'))
+    """
+    params = ()
+    if tenant_key is not None:
+        sql += " AND tenant_key=?"
+        params = (tenant_key,)
+    sql += " ORDER BY tenant_key, external_system, external_id"
+    with connect_catalog(root) as conn:
+        return [dict(x) for x in conn.execute(sql, params).fetchall()]

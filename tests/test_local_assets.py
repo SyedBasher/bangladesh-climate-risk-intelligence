@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from clr.local_assets import accepted_assets, import_asset_rows
+from clr.local_assets import accepted_assets, coarse_climate_assets, import_asset_rows
 from clr.local_store import initialize_workspace
 
 
@@ -49,6 +49,9 @@ def test_only_exact_resolved_assets_enter_era5_selection(tmp_path):
     assert result["inserted"] == 3
     accepted = accepted_assets(root)
     assert [x["external_id"] for x in accepted] == ["A"]
+
+    coarse = coarse_climate_assets(root)
+    assert [x["external_id"] for x in coarse] == ["A", "B"]
 
 
 def test_asset_import_is_idempotent(tmp_path):

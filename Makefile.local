@@ -25,5 +25,20 @@ jrc-plan:
 jrc-run:
 	python scripts/run_jrc_flood_local.py
 
+chirps-plan:
+	@test -n "$(YEAR)" || (echo "Usage: make -f Makefile.local chirps-plan YEAR=2025" && exit 2)
+	python scripts/plan_chirps_local.py --year "$(YEAR)"
+
+chirps-baseline:
+	python scripts/extract_chirps_baseline_local.py
+
+chirps-year:
+	@test -n "$(YEAR)" || (echo "Usage: make -f Makefile.local chirps-year YEAR=2025" && exit 2)
+	python scripts/extract_chirps_year_local.py --year "$(YEAR)"
+
+chirps-run:
+	@test -n "$(YEAR)" || (echo "Usage: make -f Makefile.local chirps-run YEAR=2025" && exit 2)
+	python scripts/run_chirps_rainfall_local.py --year "$(YEAR)"
+
 local-test:
-	pytest -q tests/test_local_store.py tests/test_local_assets.py tests/test_era5_local.py tests/test_jrc_flood.py tests/test_jrc_local.py tests/test_jrc_lineage.py tests/test_public_boundary.py
+	pytest -q tests/test_local_store.py tests/test_local_assets.py tests/test_era5_local.py tests/test_jrc_flood.py tests/test_jrc_local.py tests/test_jrc_lineage.py tests/test_chirps.py tests/test_chirps_local.py tests/test_public_boundary.py
