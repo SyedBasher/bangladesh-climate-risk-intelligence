@@ -57,6 +57,7 @@ The local catalog uses SQLite; larger analytical tables use Parquet; source snap
 See:
 - `docs/LOCAL_PRIVATE_DATA_PLANE.md`
 - `docs/LOCAL_BACKUP_POLICY.md`
+- `docs/PRIVATE_DECISION_WORKSPACE.md`
 
 ## Core design principles
 
@@ -92,6 +93,7 @@ See:
 - `src/clr/compound_local.py` — same-month heat–drought joins, flood/route evidence states, and cross-asset bottleneck metrics
 - `src/clr/decision_reports.py` — governed decision-facing assembly of asset, compound, logistics, and portfolio evidence
 - `src/clr/decision_report_html.py` — standalone printable HTML rendering of governed decision-workspace objects
+- `src/clr/private_decision_workspace.py` — explicit-run adapter from the private SQLite/Parquet data plane to JSON/HTML decision reports
 - `src/clr/synthetic_decision_demo.py` — reproducible synthetic public workspace fixture
 - `src/clr/intelligence.py` — transparent second-/third-order exposure logic
 - `src/clr/portfolio.py` — bank/insurer portfolio accumulation and concentration
