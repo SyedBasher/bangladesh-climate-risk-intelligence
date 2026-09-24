@@ -35,4 +35,5 @@ def test_public_index_marks_decision_reports_current():
     assert "examples/synthetic/decision_workspace_demo.html" in text
     assert "Private authenticated workspace: local-only shell" in text
     assert "Hosted private pilot security: named users, tenant roles, revocable sessions &amp; audit chain" in text
-    assert "deployment rehearsal &amp; external security review" in text
+    assert "Deployment rehearsal: backup/restore, audit verification &amp; fail-closed preflight" in text
+    assert "private-host execution &amp; external security review" in text
