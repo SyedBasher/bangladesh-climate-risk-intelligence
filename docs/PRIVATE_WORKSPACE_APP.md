@@ -1,8 +1,10 @@
 # Private Authenticated Workspace 0.1
 
-This is the first user-facing shell over the private Decision Workspace adapter.
+> **Legacy local compatibility shell.** This shared-password interface is disabled by default and must not be used for the hosted pilot. The supported hosted path is `scripts/run_private_pilot_app.py`.
 
-It is intentionally a **local-only** application. Version 0.1 binds only to a loopback interface and is not a production internet deployment.
+This was the first user-facing shell over the private Decision Workspace adapter.
+
+It remains a **local-only compatibility application**. Version 0.1 binds only to a loopback interface and is not a production internet deployment.
 
 ## Architecture
 
@@ -71,11 +73,15 @@ The session signing secret is generated separately and is rotated whenever the w
 
 Both files are inside the gitignored private workspace.
 
-## Start the app
+## Start the legacy local app
+
+Startup requires an explicit compatibility opt-in:
 
 ```bash
-python scripts/run_private_workspace_app.py
+python scripts/run_private_workspace_app.py --allow-legacy-shared-password
 ```
+
+Do not use this command on the hosted pilot server.
 
 Default address:
 
@@ -86,7 +92,7 @@ http://127.0.0.1:8765/
 Alternative local port:
 
 ```bash
-python scripts/run_private_workspace_app.py --port 8877
+python scripts/run_private_workspace_app.py --allow-legacy-shared-password --port 8877
 ```
 
 The shell refuses non-loopback bindings such as:
@@ -225,18 +231,12 @@ The absence of those features is why non-loopback binding is blocked.
 
 The named-user pilot layer described in `docs/HOSTED_PRIVATE_PILOT_SECURITY.md` now implements the first deployment-security step above this local single-password shell.
 
-The local shell remains useful for one-workstation private analysis. The pilot layer is the path for named users, role-based tenant access, revocable sessions, audit chaining, and TLS reverse-proxy deployment.
+The local shell is retained only for one-workstation compatibility/testing and now requires explicit opt-in. The named-user pilot is the only supported path for role-based tenant access, revocable sessions, audit anchoring, and TLS reverse-proxy deployment.
 
-## Next deployment step
+## Hosted deployment status
 
-A later hosted private pilot should introduce, before any internet-facing use:
+The named-user hosted-pilot layer now provides the supported remote-access path. This legacy shell must not be co-hosted with it.
 
-1. TLS and reverse-proxy hardening;
-2. named users and role/tenant authorization;
-3. immutable access/audit logging;
-4. secret management outside the application filesystem where appropriate;
-5. session revocation and password reset procedures;
-6. explicit deployment backups and disaster recovery;
-7. portfolio-snapshot versioning if historical portfolio reconstruction is required.
+Remaining production controls such as MFA/SSO, separately protected append-only audit retention, infrastructure secret management, and full host disaster recovery remain deployment/production hardening items.
 
-The hosted layer should continue to call the same governed adapter and renderer rather than reimplementing analytical logic.
+The hosted layer continues to call the same governed adapter and renderer rather than reimplementing analytical logic.
