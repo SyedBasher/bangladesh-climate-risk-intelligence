@@ -15,7 +15,10 @@ from typing import Any
 from urllib.parse import parse_qs, quote, urlparse
 
 from .local_store import canonical_tenant_key, connect_catalog
-from .private_decision_workspace import build_and_write_private_decision_workspace
+from .private_decision_workspace import (
+    MAX_INDICATOR_RUNS,
+    build_and_write_private_decision_workspace,
+)
 from .private_workspace_access import (
     AuditStateError,
     DEFAULT_SESSION_MINUTES,
@@ -42,7 +45,7 @@ MAX_LOGIN_USERNAME_CHARS = 128
 MAX_LOGIN_TENANT_CHARS = 128
 DEFAULT_LOGIN_ATTEMPTS_PER_KEY = 8
 DEFAULT_LOGIN_WINDOW_SECONDS = 5 * 60
-DEFAULT_LOGIN_GLOBAL_ATTEMPTS = 120
+DEFAULT_LOGIN_GLOBAL_ATTEMPTS = 20
 DEFAULT_LOGIN_GLOBAL_WINDOW_SECONDS = 60
 MAX_LOGIN_RATE_KEYS = 2048
 
@@ -70,7 +73,13 @@ class _LoginRateLimiter:
 
     @staticmethod
     def key(username: str, tenant: str) -> str:
-        raw = f"{str(username).strip().casefold()}\x00{str(tenant)}"
+        user_key = str(username).strip().casefold()
+        tenant_candidate = str(tenant).strip()
+        try:
+            tenant_key = canonical_tenant_key(tenant_candidate).casefold()
+        except ValueError:
+            tenant_key = "<invalid-tenant>"
+        raw = f"{user_key}\x00{tenant_key}"
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     @staticmethod
@@ -131,6 +140,20 @@ def _audit_tenant_or_none(tenant: str) -> str | None:
 def _is_sqlite_busy(exc: sqlite3.OperationalError) -> bool:
     message = str(exc).lower()
     return "locked" in message or "busy" in message
+
+
+def _privacy_safe_log_message(fmt: str, args: tuple[Any, ...]) -> str:
+    safe_args = list(args)
+    if safe_args:
+        request_line = str(safe_args[0])
+        parts = request_line.split(" ", 2)
+        if len(parts) >= 2:
+            parts[1] = parts[1].split("?", 1)[0]
+            safe_args[0] = " ".join(parts)
+    try:
+        return fmt % tuple(safe_args)
+    except Exception:
+        return str(fmt).split("?", 1)[0]
 
 
 def _esc(value: Any) -> str:
@@ -268,7 +291,7 @@ def render_dashboard(
 <label><input type="radio" name="scope" value="PORTFOLIO" onchange="toggleScope()"> Portfolio</label></div></div>
 <div id="asset-field" class="field"><label>Asset</label><select name="asset_location_id">{assets}</select></div>
 <div id="portfolio-field" class="field hidden"><label>Portfolio</label><select name="portfolio_id">{portfolios}</select></div>
-<div class="field"><label>Indicator runs</label><div class="checks">{runs}</div></div>
+<div class="field"><label>Indicator runs (maximum {MAX_INDICATOR_RUNS})</label><div class="checks">{runs}</div></div>
 <div class="field"><label>Compound run</label><select name="compound_run">{compound}</select></div>
 <div class="field"><label>Logistics run</label><select name="route_run">{routes}</select></div>
 <div class="field"><label>Portfolio footprint hazard indicator</label><input type="text" name="flood_indicator_id" value="flood_rp100_depth_m"></div>
@@ -355,7 +378,7 @@ def make_pilot_handler(
         server_version = "CLRPrivatePilot/0.1"
 
         def log_message(self, fmt: str, *args: Any) -> None:
-            message = (fmt % args).split("?", 1)[0]
+            message = _privacy_safe_log_message(fmt, args)
             print(f"[pilot] {self.client_address[0]} {message}")
 
         def _headers(
@@ -696,6 +719,10 @@ def make_pilot_handler(
                     runs = [x.strip() for x in form.get("indicator_run", []) if x.strip()]
                     if not runs:
                         raise ValueError("Select at least one successful indicator run.")
+                    if len(runs) > MAX_INDICATOR_RUNS:
+                        raise ValueError(
+                            f"Select no more than {MAX_INDICATOR_RUNS} indicator runs."
+                        )
                     kwargs: dict[str, Any] = {
                         "scope_type": scope,
                         "tenant_key": identity["tenant_key"],
