@@ -456,6 +456,21 @@ def make_pilot_handler(
                 f"SameSite=Strict; Max-Age={int(max_age)}{secure}"
             )
 
+        def _login_origin_allowed(self) -> bool:
+            origin = self.headers.get("Origin")
+            if not origin:
+                return True
+            parsed = urlparse(origin)
+            expected_scheme = "https" if secure_cookie else "http"
+            host = (self.headers.get("Host") or "").strip().lower()
+            return (
+                parsed.scheme.lower() == expected_scheme
+                and parsed.netloc.lower() == host
+                and not parsed.path.strip("/")
+                and not parsed.query
+                and not parsed.fragment
+            )
+
         def _do_GET(self) -> None:
             parsed = urlparse(self.path)
             if parsed.path == "/login":
@@ -550,6 +565,12 @@ def make_pilot_handler(
             parsed = urlparse(self.path)
             if parsed.path == "/login":
                 try:
+                    if not self._login_origin_allowed():
+                        self._html(
+                            403,
+                            render_login("Sign-in request origin was not accepted."),
+                        )
+                        return
                     form = self._form(max_bytes=MAX_LOGIN_FORM_BYTES)
                     username = form.get("username", [""])[0]
                     tenant = form.get("tenant", [""])[0]
