@@ -32,6 +32,17 @@ def _safe_part(value: Any) -> str:
     return _SAFE_PART.sub("_", text)
 
 
+def _require_safe_tenant_key(value: Any) -> str:
+    tenant = str(value).strip()
+    if not tenant:
+        raise ValueError("tenant_key must be non-empty")
+    if _safe_part(tenant) != tenant:
+        raise ValueError(
+            "Private web workspace tenant keys must use only A-Z, a-z, 0-9, dot, underscore, equals, and hyphen"
+        )
+    return tenant
+
+
 def _private_root(root: str | Path) -> Path:
     root = Path(root).resolve()
     if not (root / ".private-data-root").exists():
@@ -55,8 +66,9 @@ def _json_params(raw: str | None) -> dict[str, Any]:
 
 def tenant_exists(root: str | Path, tenant_key: str) -> bool:
     root = _private_root(root)
-    tenant = str(tenant_key).strip()
-    if not tenant:
+    try:
+        tenant = _require_safe_tenant_key(tenant_key)
+    except ValueError:
         return False
     with connect_catalog(root) as conn:
         asset = conn.execute(
@@ -76,9 +88,7 @@ def tenant_exists(root: str | Path, tenant_key: str) -> bool:
 
 def workspace_catalog(root: str | Path, tenant_key: str) -> dict[str, Any]:
     root = _private_root(root)
-    tenant = str(tenant_key).strip()
-    if not tenant:
-        raise ValueError("tenant_key must be non-empty")
+    tenant = _require_safe_tenant_key(tenant_key)
 
     with connect_catalog(root) as conn:
         assets = [
@@ -180,7 +190,8 @@ def workspace_catalog(root: str | Path, tenant_key: str) -> dict[str, Any]:
 
 def list_private_reports(root: str | Path, tenant_key: str) -> list[dict[str, Any]]:
     root = _private_root(root)
-    base = root / "outputs" / "reports" / _safe_part(tenant_key)
+    tenant = _require_safe_tenant_key(tenant_key)
+    base = root / "outputs" / "reports" / tenant
     if not base.exists():
         return []
     out = []
@@ -229,7 +240,8 @@ def _safe_output_file(
     suffixes: tuple[str, ...],
 ) -> Path:
     root = _private_root(root)
-    base = (root / "outputs" / "reports" / _safe_part(tenant_key)).resolve()
+    tenant = _require_safe_tenant_key(tenant_key)
+    base = (root / "outputs" / "reports" / tenant).resolve()
     target = (root / relative_path).resolve()
     try:
         target.relative_to(base)
