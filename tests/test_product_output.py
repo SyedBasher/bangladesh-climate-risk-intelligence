@@ -1,5 +1,5 @@
 import pytest
-from clr.product_output import asset_intelligence_report, portfolio_intelligence_report
+from clr.product_output import asset_intelligence_report, portfolio_intelligence_report, compound_intelligence_report
 
 
 def test_asset_report_preserves_provenance_and_no_score():
@@ -46,3 +46,41 @@ def test_portfolio_report_accepts_exposure_metric():
     )
     assert report["portfolio_metrics"][0]["value"] == 0.25
     assert report["what_data_would_change_the_answer"] == ["Add exact collateral coordinates."]
+
+
+
+def test_compound_report_preserves_denominators_and_no_score():
+    report=compound_intelligence_report(
+        "INTERNAL",2025,100,
+        asset_compound_evidence=[
+            {"external_id":"A","evidence_state":"SITE_AND_ROUTE_EXPOSED"}
+        ],
+        cross_asset_metrics=[
+            {
+                "analysis_type":"HEAT_DROUGHT",
+                "metric_id":"asset_share_with_heat_spi3_cooccurrence",
+                "value":0.5,"unit":"share","denominator":8,
+                "quality_flag":"OK",
+            }
+        ],
+        shared_bottlenecks=[
+            {"physical_edge_key":"1:2","distinct_asset_count":3}
+        ],
+        input_manifest={"inputs":[]},
+    )
+    assert report["report_type"]=="COMPOUND_CROSS_ASSET_INTELLIGENCE"
+    assert report["cross_asset_metrics"][0]["denominator"]==8
+    assert "risk_score" not in report
+    assert any("No composite" in x for x in report["guardrails"])
+
+
+def test_compound_report_rejects_null_metric_marked_ok():
+    with pytest.raises(ValueError):
+        compound_intelligence_report(
+            "INTERNAL",2025,100,[],[
+                {
+                    "metric_id":"asset_share_with_heat_spi3_cooccurrence",
+                    "value":None,"quality_flag":"OK",
+                }
+            ],[],{"inputs":[]}
+        )
