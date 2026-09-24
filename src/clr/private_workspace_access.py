@@ -87,9 +87,18 @@ def _sanitize_audit_value(value: Any, *, depth: int = 0) -> Any:
         out: dict[str, Any] = {}
         for key, child in list(value.items())[:MAX_AUDIT_DETAIL_ITEMS]:
             key_text = str(key)[:64]
-            if key_text.lower() in {
-                "password", "token", "session_token", "secret",
-            }:
+            lower_key = key_text.lower()
+            if any(
+                marker in lower_key
+                for marker in (
+                    "password",
+                    "token",
+                    "secret",
+                    "credential",
+                    "api_key",
+                    "apikey",
+                )
+            ):
                 continue
             out[key_text] = _sanitize_audit_value(child, depth=depth + 1)
         return out
