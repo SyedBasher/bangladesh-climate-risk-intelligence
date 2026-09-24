@@ -73,6 +73,70 @@ def _require_runs(conn, run_ids: Iterable[str]) -> list[dict[str, Any]]:
     return [_require_successful_run(conn, run_id) for run_id in ids]
 
 
+def _require_indicator_runs_for_tenant(
+    conn,
+    *,
+    tenant_key: str,
+    run_ids: list[str],
+) -> None:
+    for run_id in run_ids:
+        row = conn.execute(
+            """
+            SELECT 1
+            FROM asset_indicator
+            WHERE tenant_key=? AND run_id=?
+            LIMIT 1
+            """,
+            (tenant_key, run_id),
+        ).fetchone()
+        if row is None:
+            raise ValueError(
+                f"Indicator run {run_id} has no evidence for tenant {tenant_key}"
+            )
+
+
+def _require_compound_run_for_tenant(
+    conn,
+    *,
+    tenant_key: str,
+    run_id: str,
+) -> None:
+    row = conn.execute(
+        """
+        SELECT 1
+        FROM cross_asset_metric
+        WHERE tenant_key=? AND run_id=?
+        LIMIT 1
+        """,
+        (tenant_key, run_id),
+    ).fetchone()
+    if row is None:
+        raise ValueError(
+            f"Compound run {run_id} has no cross-asset evidence for tenant {tenant_key}"
+        )
+
+
+def _require_route_run_for_tenant(
+    conn,
+    *,
+    tenant_key: str,
+    run_id: str,
+) -> None:
+    row = conn.execute(
+        """
+        SELECT 1
+        FROM logistics_route_analysis
+        WHERE tenant_key=? AND run_id=?
+        LIMIT 1
+        """,
+        (tenant_key, run_id),
+    ).fetchone()
+    if row is None:
+        raise ValueError(
+            f"Route run {run_id} has no logistics evidence for tenant {tenant_key}"
+        )
+
+
 def _resolve_asset(
     conn,
     *,
@@ -666,6 +730,11 @@ def build_private_decision_workspace(
     with connect_catalog(root) as conn:
         indicator_runs = _require_runs(conn, indicator_run_ids)
         run_ids = [x["run_id"] for x in indicator_runs]
+        _require_indicator_runs_for_tenant(
+            conn,
+            tenant_key=tenant_key,
+            run_ids=run_ids,
+        )
 
         asset_report = None
         portfolio_report = None
@@ -742,6 +811,11 @@ def build_private_decision_workspace(
         compound_report = None
         if compound_run_id:
             compound_run = _require_successful_run(conn, compound_run_id)
+            _require_compound_run_for_tenant(
+                conn,
+                tenant_key=tenant_key,
+                run_id=compound_run_id,
+            )
             params = compound_run.get("parameters", {})
             if params.get("tenant") not in (None, tenant_key):
                 raise ValueError("Compound run tenant does not match requested tenant")
@@ -788,6 +862,11 @@ def build_private_decision_workspace(
         logistics = []
         if route_run_id:
             route_run = _require_successful_run(conn, route_run_id)
+            _require_route_run_for_tenant(
+                conn,
+                tenant_key=tenant_key,
+                run_id=route_run_id,
+            )
             route_params = route_run.get("parameters", {})
             if route_params.get("tenant") not in (None, tenant_key):
                 raise ValueError("Route run tenant does not match requested tenant")

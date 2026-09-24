@@ -20,6 +20,7 @@ def test_initialize_workspace_creates_catalog_and_layers(tmp_path):
     result = initialize_workspace(root, schema_path())
     assert Path(result["catalog"]).exists()
     assert (root / ".private-data-root").exists()
+    assert (root / "auth").is_dir()
     assert (root / "raw" / "era5_land").is_dir()
     assert (root / "indicators" / "portfolio").is_dir()
     with connect_catalog(root) as conn:

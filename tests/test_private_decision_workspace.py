@@ -335,3 +335,113 @@ def test_output_writer_refuses_uninitialized_root(tmp_path):
             indicator_run_ids=["anything"],
             asset_location_id="A",
         )
+
+
+def test_adapter_rejects_successful_indicator_run_from_another_tenant(tmp_path):
+    root, source, assets = _workspace(tmp_path)
+    import_asset_rows(
+        root,
+        [{
+            "external_system": "SYNTH",
+            "external_id": "OTHER",
+            "asset_type": "FACTORY",
+            "latitude": 23.7,
+            "longitude": 90.2,
+            "coordinate_source": "SYNTHETIC",
+            "site_identity_grade": "EXACT_SITE",
+            "coordinate_status": "RESOLVED",
+        }],
+        tenant_key="TENANT_B",
+    )
+    with connect_catalog(root) as conn:
+        other = dict(
+            conn.execute(
+                "SELECT * FROM asset_location WHERE tenant_key='TENANT_B'"
+            ).fetchone()
+        )
+    run_id = start_processing_run(
+        root,
+        pipeline_name="other_tenant_indicator",
+        pipeline_version="0.1",
+        parameters={"tenant": "TENANT_B"},
+    )
+    with connect_catalog(root) as conn:
+        conn.execute(
+            """
+            INSERT INTO asset_indicator(
+                tenant_key,asset_location_id,indicator_id,value_numeric,value_text,
+                unit,value_class,measurement_basis,source_artifact_id,method_version,
+                period_start,period_end,quality_flag,null_reason,run_id,calculated_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                "TENANT_B",
+                other["asset_location_id"],
+                "flood_rp100_depth_m",
+                0.4,
+                None,
+                "m",
+                "SOURCE",
+                "HYDROLOGICAL_HYDRODYNAMIC_MODEL",
+                source["source_artifact_id"],
+                "SYNTH",
+                None,
+                None,
+                "OK",
+                None,
+                run_id,
+                utc_now(),
+            ),
+        )
+        conn.commit()
+    finish_processing_run(root, run_id, status="SUCCESS")
+
+    with pytest.raises(ValueError, match="has no evidence for tenant INTERNAL"):
+        build_private_decision_workspace(
+            root,
+            scope_type="ASSET",
+            tenant_key="INTERNAL",
+            indicator_run_ids=[run_id],
+            asset_location_id=assets["A"]["asset_location_id"],
+        )
+
+
+def test_adapter_rejects_compound_run_from_another_tenant(tmp_path):
+    root, source, assets = _workspace(tmp_path)
+    indicator_run = _successful_indicator_run(root, source, assets)
+    compound_run = start_processing_run(
+        root,
+        pipeline_name="compound_cross_asset_intelligence",
+        pipeline_version="0.1.0",
+        parameters={"tenant": "TENANT_B", "year": 2025, "return_period": 100},
+    )
+    _insert_cross_metric(
+        root,
+        tenant_key="TENANT_B",
+        analysis_type="HEAT_DROUGHT",
+        metric_id="asset_share_with_heat_spi3_cooccurrence",
+        value=0.5,
+        unit="share",
+        period_start="2025-01-01",
+        period_end="2025-12-31",
+        method_version="SYNTH",
+        quality_flag="OK",
+        input_manifest={"inputs": [{"dataset_name": "synthetic"}]},
+        run_id=compound_run,
+        source_roles={"HEAT_SOURCE": {source["source_artifact_id"]}},
+        denominator=2,
+    )
+    finish_processing_run(root, compound_run, status="SUCCESS")
+
+    with pytest.raises(
+        ValueError,
+        match="has no cross-asset evidence for tenant INTERNAL",
+    ):
+        build_private_decision_workspace(
+            root,
+            scope_type="ASSET",
+            tenant_key="INTERNAL",
+            indicator_run_ids=[indicator_run],
+            asset_location_id=assets["A"]["asset_location_id"],
+            compound_run_id=compound_run,
+        )

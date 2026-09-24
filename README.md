@@ -58,6 +58,7 @@ See:
 - `docs/LOCAL_PRIVATE_DATA_PLANE.md`
 - `docs/LOCAL_BACKUP_POLICY.md`
 - `docs/PRIVATE_DECISION_WORKSPACE.md`
+- `docs/PRIVATE_WORKSPACE_APP.md`
 
 ## Core design principles
 
@@ -94,6 +95,8 @@ See:
 - `src/clr/decision_reports.py` — governed decision-facing assembly of asset, compound, logistics, and portfolio evidence
 - `src/clr/decision_report_html.py` — standalone printable HTML rendering of governed decision-workspace objects
 - `src/clr/private_decision_workspace.py` — explicit-run adapter from the private SQLite/Parquet data plane to JSON/HTML decision reports
+- `src/clr/private_workspace_auth.py` — local password hashing and signed tenant-bound sessions
+- `src/clr/private_workspace_app.py` — localhost-only authenticated Decision Workspace shell
 - `src/clr/synthetic_decision_demo.py` — reproducible synthetic public workspace fixture
 - `src/clr/intelligence.py` — transparent second-/third-order exposure logic
 - `src/clr/portfolio.py` — bank/insurer portfolio accumulation and concentration
