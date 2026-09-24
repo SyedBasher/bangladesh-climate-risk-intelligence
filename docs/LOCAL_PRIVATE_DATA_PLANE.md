@@ -71,7 +71,7 @@ private_data/
 └── tmp/
 ```
 
-The entire workspace is gitignored.
+The entire workspace is gitignored. In addition, every initialized workspace writes its own root `.gitignore` containing `*`, so a custom workspace directory placed inside another Git checkout remains excluded from an ordinary `git add .`. Initialization refuses to use a Git repository root itself as the private workspace.
 
 ## SQLite responsibilities
 
@@ -133,6 +133,9 @@ Never overwrite a registered raw snapshot. A changed upstream file is a new sour
 ## Path rule
 
 SQLite stores **relative paths**, not workstation-specific absolute paths. This keeps the workspace portable across disks/machines.
+
+Tenant keys are also path-security identifiers. They must be 1–128 characters using only letters, numbers, dot, underscore, equals and hyphen; leading/trailing whitespace and leading/trailing dots are rejected rather than normalized. This prevents path-segment tenant IDs from widening report-directory scope.
+
 
 ## Production sequence
 
