@@ -3,6 +3,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from .local_store import WORKSPACE_DIRS
+
 FORBIDDEN_PREFIXES = (
     "private_data/",
     "local_data/",
@@ -28,24 +30,15 @@ FORBIDDEN_SUFFIXES = (
     ".shp", ".shx", ".dbf", ".vrt", ".clrbackup",
 )
 
-FORBIDDEN_PATH_FRAGMENTS = (
-    "/outputs/reports/",
-    "/outputs/qa/",
-    "/backups/catalog/",
-    "/backups/recovery/",
-    "/manifests/source_vintages/",
-    "/manifests/plans/",
-    "/normalized/assets/",
-    "/normalized/admin/",
-    "/normalized/climate/",
-    "/normalized/roads/",
-    "/normalized/events/",
-    "/indicators/asset/",
-    "/indicators/admin/",
-    "/indicators/portfolio/",
-    "/indicators/logistics/",
-    "/tmp/clr-restore-rehearsal-",
+FORBIDDEN_PATH_FRAGMENTS = tuple(
+    sorted(
+        {
+            "/" + rel.strip("/").lower() + "/"
+            for rel in WORKSPACE_DIRS
+        }
+    )
 )
+
 
 FORBIDDEN_BASENAMES = {
     ".env",
