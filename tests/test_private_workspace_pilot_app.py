@@ -565,3 +565,60 @@ def test_same_origin_browser_login_is_accepted(tmp_path):
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_report_audit_state_failure_returns_503_not_404_or_disconnect(tmp_path):
+    root, asset, run_id, _ = _workspace(tmp_path)
+    server, thread = _server(root)
+    host, port = server.server_address
+    try:
+        conn = http.client.HTTPConnection(host, port, timeout=5)
+        cookie = _login(conn, "analyst", "synthetic-analyst-password")
+        cookie_pair, token = _cookie_token(cookie)
+        body = urlencode(
+            {
+                "csrf": _csrf_for_token(token),
+                "scope": "ASSET",
+                "asset_location_id": asset["asset_location_id"],
+                "indicator_run": run_id,
+                "flood_indicator_id": "flood_rp100_depth_m",
+            },
+            doseq=True,
+        )
+        conn.request(
+            "POST",
+            "/generate",
+            body=body,
+            headers={
+                "Cookie": cookie_pair,
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Content-Length": str(len(body.encode("utf-8"))),
+            },
+        )
+        response = conn.getresponse()
+        response.read()
+        assert response.status == 303
+        location = response.getheader("Location")
+        assert location and location.startswith("/report?path=")
+
+        anchor = root / "auth" / "audit_head_anchor.json"
+        payload = json.loads(anchor.read_text(encoding="utf-8"))
+        payload["event_count"] = int(payload["event_count"]) + 1
+        anchor.write_text(json.dumps(payload), encoding="utf-8")
+
+        conn.request(
+            "GET",
+            location,
+            headers={"Cookie": cookie_pair},
+        )
+        response = conn.getresponse()
+        page = response.read().decode("utf-8")
+        assert response.status == 503
+        assert response.getheader("Retry-After") == "1"
+        assert "temporarily unavailable" in page
+        assert "Report file not available" not in page
+        conn.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
