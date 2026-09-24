@@ -37,6 +37,7 @@ backups/
 *.dbf
 *.vrt
 *.zip
+*.clrbackup
 
 # Secrets and credentials
 .env
@@ -68,10 +69,12 @@ Thumbs.db
 **/.private-data-root
 **/workspace_auth.json
 **/audit_chain_secret.bin
+**/audit_head_anchor.json
 **/session_secret.bin
 **/outputs/reports/
 **/outputs/qa/
 **/backups/catalog/
+**/backups/recovery/
 **/manifests/source_vintages/
 **/manifests/plans/
 **/normalized/
