@@ -166,8 +166,10 @@ def _catalog_security_summary(root: str | Path) -> dict[str, Any]:
             LEFT JOIN workspace_tenant_membership m
               ON m.user_id=s.user_id AND m.tenant_key=s.tenant_key
             WHERE s.revoked_at IS NULL
+              AND s.expires_at > ?
               AND (u.user_id IS NULL OR u.is_active=0 OR m.user_id IS NULL OR m.role<>s.role)
-            """
+            """,
+            (datetime.now(timezone.utc).isoformat(),),
         ).fetchone()["n"]
     return {
         "users": users,
