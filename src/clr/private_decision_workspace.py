@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from datetime import datetime, timezone
@@ -13,7 +12,6 @@ from .decision_report_html import render_decision_workspace_html
 from .decision_reports import decision_workspace_report
 from .local_store import connect_catalog, sha256_file
 from .portfolio import exposure_in_footprint
-from .portfolio_intelligence import portfolio_next_data_questions
 from .product_output import (
     asset_intelligence_report,
     compound_intelligence_report,
@@ -123,17 +121,25 @@ def _indicator_sources(conn, asset_indicator_id: int) -> list[dict[str, Any]]:
             s.valid_time_start,
             s.valid_time_end,
             s.sha256,
-            COALESCE(ais.source_role,'PRIMARY') AS source_role
-        FROM asset_indicator ai
-        LEFT JOIN asset_indicator_source ais
-          ON ais.asset_indicator_id=ai.asset_indicator_id
-        LEFT JOIN source_artifact s
-          ON s.source_artifact_id=COALESCE(ais.source_artifact_id,ai.source_artifact_id)
-        WHERE ai.asset_indicator_id=?
-          AND s.source_artifact_id IS NOT NULL
-        ORDER BY s.source_id, source_role
+            s.retrieval_status,
+            src.source_role
+        FROM (
+            SELECT ai.source_artifact_id AS source_artifact_id,
+                   'PRIMARY' AS source_role
+            FROM asset_indicator ai
+            WHERE ai.asset_indicator_id=?
+              AND ai.source_artifact_id IS NOT NULL
+            UNION
+            SELECT ais.source_artifact_id,
+                   ais.source_role
+            FROM asset_indicator_source ais
+            WHERE ais.asset_indicator_id=?
+        ) src
+        JOIN source_artifact s
+          ON s.source_artifact_id=src.source_artifact_id
+        ORDER BY s.source_id, src.source_role
         """,
-        (asset_indicator_id,),
+        (asset_indicator_id, asset_indicator_id),
     ).fetchall()
     return [dict(row) for row in rows]
 
@@ -206,6 +212,10 @@ def _load_asset_evidence(
         quality = row["quality_flag"]
         if not sources and quality == "OK":
             quality = "MISSING_SOURCE_LINEAGE"
+        elif quality == "OK" and any(
+            source.get("retrieval_status") != "COMPLETE" for source in sources
+        ):
+            quality = "SOURCE_NOT_COMPLETE"
         evidence.append(
             {
                 "indicator_id": row["indicator_id"],
@@ -576,17 +586,45 @@ def _build_portfolio_report(
         )
 
     linked = sum(1 for x in rows if x.get("asset_location_id"))
-    missing_amount = sum(1 for x in rows if x["exposure_type"] == "EAD" and x.get("amount") is None)
-    summary = {
-        "loan_share_with_asset_link": linked / len(rows) if rows else 0,
-        "asset_share_exact_resolved": 1.0 if asset_ids else 0.0,
-        "missing_ead_share": (
-            missing_amount / sum(1 for x in rows if x["exposure_type"] == "EAD")
-            if any(x["exposure_type"] == "EAD" for x in rows)
-            else 0.0
-        ),
-    }
-    missing_questions = portfolio_next_data_questions(summary)
+    missing_amount = sum(
+        1
+        for x in rows
+        if x["exposure_type"] == "EAD" and x.get("amount") is None
+    )
+    resolved_assets = 0
+    if asset_ids:
+        placeholders = ",".join("?" for _ in asset_ids)
+        resolved_assets = conn.execute(
+            f"""
+            SELECT count(*) AS n
+            FROM asset_location
+            WHERE tenant_key=?
+              AND asset_location_id IN ({placeholders})
+              AND site_identity_grade='EXACT_SITE'
+              AND coordinate_status='RESOLVED'
+            """,
+            (tenant_key, *asset_ids),
+        ).fetchone()["n"]
+
+    missing_questions = []
+    if linked < len(rows):
+        missing_questions.append(
+            "Link more portfolio exposure rows to governed asset locations."
+        )
+    if resolved_assets < len(asset_ids):
+        missing_questions.append(
+            "Improve linked-asset geocoding before relying on fine-resolution hazard metrics."
+        )
+    if missing_amount:
+        missing_questions.append("Resolve missing EAD/outstanding exposure values.")
+    missing_questions.extend(
+        [
+            "Add collateral market value, valuation date and LTV where collateral loss analysis is required.",
+            "Add borrower revenue/cash-flow and sector-specific operating data before estimating credit-loss transmission.",
+            "Add insurance coverage/sum insured before evaluating protection gaps.",
+            "Add logistics endpoints and alternative routes before estimating common-bottleneck operational concentration.",
+        ]
+    )
     report = portfolio_intelligence_report(
         portfolio_id,
         metrics,
@@ -750,6 +788,9 @@ def build_private_decision_workspace(
         logistics = []
         if route_run_id:
             route_run = _require_successful_run(conn, route_run_id)
+            route_params = route_run.get("parameters", {})
+            if route_params.get("tenant") not in (None, tenant_key):
+                raise ValueError("Route run tenant does not match requested tenant")
             logistics = _load_logistics_dependencies(
                 conn,
                 tenant_key=tenant_key,
@@ -761,7 +802,7 @@ def build_private_decision_workspace(
                 "pipeline_name": route_run["pipeline_name"],
                 "pipeline_version": route_run["pipeline_version"],
                 "git_commit": route_run.get("git_commit"),
-                "parameters": route_run.get("parameters", {}),
+                "parameters": route_params,
             }
 
     report = decision_workspace_report(
@@ -807,7 +848,7 @@ def write_private_decision_workspace(
         / _safe_part(scope["subject_id"])
     )
     out_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     stem = f"decision-workspace-{timestamp}"
     json_path = out_dir / f"{stem}.json"
     html_path = out_dir / f"{stem}.html"
