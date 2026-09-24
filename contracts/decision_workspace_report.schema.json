@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Decision Reports & Portfolio Workspace",
+  "type": "object",
+  "required": [
+    "report_type",
+    "schema_version",
+    "scope",
+    "executive_evidence_summary",
+    "data_readiness",
+    "direct_physical_evidence",
+    "second_order_exposure",
+    "compound_evidence",
+    "operational_transmission",
+    "logistics_dependencies",
+    "cross_asset_portfolio",
+    "evidence_provenance",
+    "what_data_would_change_the_answer",
+    "source_modules",
+    "guardrails"
+  ],
+  "properties": {
+    "report_type": {"const": "DECISION_PORTFOLIO_WORKSPACE"},
+    "schema_version": {"type": "string"},
+    "scope": {
+      "type": "object",
+      "required": ["scope_type", "tenant_scope", "subject_id"],
+      "properties": {
+        "scope_type": {"enum": ["ASSET", "PORTFOLIO"]},
+        "tenant_scope": {"type": "string", "minLength": 1},
+        "subject_id": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "executive_evidence_summary": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["statement_id", "text", "evidence_class", "source_refs", "guardrail"],
+        "properties": {
+          "statement_id": {"type": "string", "minLength": 1},
+          "text": {"type": "string", "minLength": 1},
+          "evidence_class": {
+            "enum": ["DIRECT", "CALCULATED", "COMPOUND", "OPERATIONAL", "CROSS_ASSET", "MISSING_DATA"]
+          },
+          "source_refs": {"type": "array", "items": {"type": "string"}},
+          "guardrail": {"type": ["string", "null"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "data_readiness": {"type": "object"},
+    "direct_physical_evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "indicator_id",
+          "value_class",
+          "measurement_basis",
+          "source_id",
+          "source_vintage",
+          "quality_flag"
+        ],
+        "properties": {
+          "indicator_id": {"type": "string"},
+          "label": {"type": "string"},
+          "value": {"type": ["number", "string", "boolean", "null"]},
+          "unit": {"type": ["string", "null"]},
+          "value_class": {"type": "string"},
+          "measurement_basis": {"type": "string"},
+          "source_id": {"type": "string"},
+          "source_vintage": {"type": "string"},
+          "quality_flag": {"type": "string"},
+          "null_reason": {"type": ["string", "null"]},
+          "period_start": {"type": ["string", "null"]},
+          "period_end": {"type": ["string", "null"]},
+          "method_version": {"type": ["string", "null"]}
+        },
+        "additionalProperties": true
+      }
+    },
+    "second_order_exposure": {"type": "array", "items": {"type": "object"}},
+    "compound_evidence": {"type": "array", "items": {"type": "object"}},
+    "operational_transmission": {"type": "array", "items": {"type": "object"}},
+    "logistics_dependencies": {"type": "array", "items": {"type": "object"}},
+    "cross_asset_portfolio": {
+      "type": "object",
+      "required": ["cross_asset_metrics", "shared_bottlenecks", "portfolio_metrics"],
+      "properties": {
+        "cross_asset_metrics": {"type": "array", "items": {"type": "object"}},
+        "shared_bottlenecks": {"type": "array", "items": {"type": "object"}},
+        "portfolio_metrics": {"type": "array", "items": {"type": "object"}}
+      },
+      "additionalProperties": false
+    },
+    "evidence_provenance": {"type": "array", "items": {"type": "object"}},
+    "what_data_would_change_the_answer": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["data_item", "why_it_matters", "decision_question", "source_module"],
+        "properties": {
+          "data_item": {"type": "string", "minLength": 1},
+          "why_it_matters": {"type": ["string", "null"]},
+          "decision_question": {"type": ["string", "null"]},
+          "source_module": {"type": ["string", "null"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "source_modules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["report_type", "schema_version"],
+        "properties": {
+          "report_type": {"type": "string"},
+          "schema_version": {"type": ["string", "null"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "guardrails": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}
