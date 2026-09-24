@@ -79,6 +79,8 @@ CLI user creation and password reset use hidden terminal input.
 
 Authorization is tenant-specific.
 
+Tenant membership keys use the same canonical validator as private asset ingestion and Decision Workspace report generation. Path-like tenant identifiers, including leading-dot/dot-segment forms, are rejected before membership creation.
+
 A user can hold a different role in different tenants.
 
 Roles are intentionally small:
