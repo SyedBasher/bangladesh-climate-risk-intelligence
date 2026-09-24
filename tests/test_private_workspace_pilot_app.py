@@ -364,6 +364,7 @@ def _post_login_raw(conn, username, tenant, password):
 
 
 def test_login_rate_limiter_bounds_per_key_and_global_attempts():
+    assert _LoginRateLimiter.key(" User1 ", "TENANT_A") == _LoginRateLimiter.key("user1", "TENANT_A")
     limiter = _LoginRateLimiter(
         attempts_per_key=2,
         window_seconds=60,
