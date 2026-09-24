@@ -34,4 +34,5 @@ def test_public_index_marks_decision_reports_current():
     assert "Current product layer" in text
     assert "examples/synthetic/decision_workspace_demo.html" in text
     assert "Private authenticated workspace: local-only shell" in text
-    assert "hosted private pilot &amp; access-control hardening" in text
+    assert "Hosted private pilot security: named users, tenant roles, revocable sessions &amp; audit chain" in text
+    assert "deployment rehearsal &amp; external security review" in text
