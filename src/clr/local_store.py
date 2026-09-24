@@ -29,9 +29,11 @@ WORKSPACE_DIRS = (
     "indicators/portfolio",
     "indicators/logistics",
     "manifests/source_vintages",
+    "manifests/plans",
     "outputs/reports",
     "outputs/qa",
     "backups/catalog",
+    "backups/recovery",
     "tmp",
 )
 
