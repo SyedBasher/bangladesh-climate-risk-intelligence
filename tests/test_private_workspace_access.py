@@ -373,8 +373,11 @@ def test_audit_detail_is_bounded_and_sensitive_nested_values_are_removed(tmp_pat
         outcome="DENIED",
         detail={
             "username": "u" * 20_000,
+            "Password": "must-not-persist",
+            "api_token": "must-not-persist",
             "nested": {
                 "password": "must-not-persist",
+                "credential_blob": "must-not-persist",
                 "token": "must-not-persist",
                 "note": "n" * 20_000,
             },
