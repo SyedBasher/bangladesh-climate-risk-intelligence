@@ -157,6 +157,9 @@ def record_audit_event(
         clean_detail.pop(forbidden, None)
 
     with connect_catalog(root) as conn:
+        # Serialize the read-head + append operation so concurrent web requests
+        # cannot create two events pointing at the same prior hash.
+        conn.execute("BEGIN IMMEDIATE")
         prev = conn.execute(
             "SELECT event_hash FROM workspace_audit_event ORDER BY audit_event_id DESC LIMIT 1"
         ).fetchone()
@@ -250,6 +253,7 @@ def create_user(
     password: str,
     display_name: str | None = None,
     iterations: int = DEFAULT_ITERATIONS,
+    actor_user_id: str | None = None,
 ) -> dict[str, Any]:
     root = _private_root(root)
     username = _validate_username(username)
@@ -285,7 +289,7 @@ def create_user(
         conn.commit()
     record_audit_event(
         root,
-        actor_user_id=user_id,
+        actor_user_id=actor_user_id,
         tenant_key=None,
         action="USER_CREATED",
         outcome="SUCCESS",
@@ -333,7 +337,7 @@ def set_user_password(
         conn.commit()
     record_audit_event(
         root,
-        actor_user_id=actor_user_id or user_id,
+        actor_user_id=actor_user_id,
         tenant_key=None,
         action="PASSWORD_CHANGED",
         outcome="SUCCESS",
