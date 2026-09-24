@@ -58,6 +58,21 @@ python scripts/init_private_pilot_access.py
 
 The migration is idempotent.
 
+## Login abuse controls
+
+The pilot login path now applies multiple controls before an expensive password check:
+
+- login request bodies are capped more tightly than ordinary workspace forms;
+- username, tenant and password fields have explicit maximum lengths;
+- repeated attempts are throttled per username+tenant hash;
+- a global in-process attempt ceiling bounds password-hash work during credential spraying;
+- failed-login audit records store a username hash rather than the supplied raw username;
+- audit detail fields are length- and item-bounded before they reach SQLite.
+
+The in-process limiter is appropriate for the current single-process private pilot. It is not a substitute for reverse-proxy or infrastructure-level rate limiting on a future multi-process deployment.
+
+Unknown, invalid and inactive accounts perform dummy PBKDF2 work so they do not return immediately while known accounts perform password hashing.
+
 ## Users and passwords
 
 A user record stores:
@@ -94,6 +109,14 @@ Roles are intentionally small:
 The current pilot performs access management through the server-side CLI rather than an in-browser admin form.
 
 This avoids exposing account-management actions until recovery, MFA and stronger administrative safeguards are designed.
+
+## SQLite request resilience
+
+Catalog connections use a bounded SQLite busy timeout and close their file handles when a `with connect_catalog(...)` block exits.
+
+Authenticated page views are read-mostly. `last_seen_at` is touched only after a defined interval, and that activity write is best-effort. A short-lived write lock therefore does not invalidate an otherwise valid session.
+
+If the pilot request path encounters a genuine SQLite locked/busy condition, the HTTP boundary returns `503 Service Unavailable` with `Retry-After` instead of allowing the worker request to terminate without a controlled response.
 
 ## Sessions
 
@@ -220,6 +243,10 @@ Authentication failures use a generic response rather than revealing whether:
 - the user lacks membership in the supplied tenant.
 
 Detailed secrets are not written to the audit event.
+
+## Password-input boundary
+
+The pilot accepts passwords between 12 and 1,024 characters for account creation/reset. Login input uses the same upper bound. This prevents oversized credential submissions from becoming an unbounded hashing or audit-storage input.
 
 ## Pilot limitations
 

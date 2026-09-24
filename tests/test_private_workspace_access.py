@@ -1,10 +1,13 @@
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import sqlite3
 import pytest
 
-from clr.local_store import connect_catalog, initialize_workspace
+import clr.private_workspace_access as access_module
+
+from clr.local_store import catalog_path, connect_catalog, initialize_workspace
 from clr.private_workspace_access import (
     access_schema_ready,
     apply_access_schema,
@@ -301,3 +304,146 @@ def test_concurrent_audit_appends_remain_one_valid_chain(tmp_path):
     chain = verify_audit_chain(root)
     assert chain["valid"]
     assert chain["checked_events"] == 18
+
+
+def test_unknown_and_known_accounts_both_perform_password_hash_work(tmp_path, monkeypatch):
+    root = _workspace(tmp_path)
+    user = create_user(
+        root,
+        username="timing-user",
+        password="synthetic-long-password",
+        iterations=100_000,
+    )
+    grant_membership(
+        root,
+        user_id=user["user_id"],
+        tenant_key="TENANT_A",
+        role="VIEWER",
+    )
+
+    original = access_module._password_digest
+    calls = []
+
+    def counted(password, salt, iterations):
+        calls.append(int(iterations))
+        return original(password, salt, iterations)
+
+    monkeypatch.setattr(access_module, "_password_digest", counted)
+
+    assert authenticate_user(
+        root,
+        username="missing-user",
+        password="wrong-password-value",
+        tenant_key="TENANT_A",
+    ) is None
+    missing_calls = list(calls)
+    calls.clear()
+
+    assert authenticate_user(
+        root,
+        username="timing-user",
+        password="wrong-password-value",
+        tenant_key="TENANT_A",
+    ) is None
+    existing_calls = list(calls)
+    calls.clear()
+
+    assert authenticate_user(
+        root,
+        username="../invalid",
+        password="wrong-password-value",
+        tenant_key="TENANT_A",
+    ) is None
+    invalid_calls = list(calls)
+
+    assert sum(missing_calls) == 100_000
+    assert sum(existing_calls) == 100_000
+    assert sum(invalid_calls) == 100_000
+
+
+def test_audit_detail_is_bounded_and_sensitive_nested_values_are_removed(tmp_path):
+    root = _workspace(tmp_path)
+    record_audit_event(
+        root,
+        actor_user_id=None,
+        tenant_key="TENANT_A",
+        action="LOGIN",
+        outcome="DENIED",
+        detail={
+            "username": "u" * 20_000,
+            "nested": {
+                "password": "must-not-persist",
+                "token": "must-not-persist",
+                "note": "n" * 20_000,
+            },
+        },
+    )
+    with connect_catalog(root) as conn:
+        detail_json = conn.execute(
+            """
+            SELECT detail_json
+            FROM workspace_audit_event
+            ORDER BY audit_event_id DESC
+            LIMIT 1
+            """
+        ).fetchone()["detail_json"]
+    assert len(detail_json.encode("utf-8")) <= access_module.MAX_AUDIT_DETAIL_BYTES
+    assert "must-not-persist" not in detail_json
+    assert "u" * 1000 not in detail_json
+    assert verify_audit_chain(root)["valid"]
+
+
+def test_session_touch_is_infrequent_and_lock_failure_is_best_effort(tmp_path):
+    root = _workspace(tmp_path)
+    user = create_user(
+        root,
+        username="touch-user",
+        password="synthetic-long-password",
+        iterations=100_000,
+    )
+    grant_membership(
+        root,
+        user_id=user["user_id"],
+        tenant_key="TENANT_A",
+        role="VIEWER",
+    )
+    start = datetime(2026, 9, 24, 0, 0, tzinfo=timezone.utc)
+    token, session = create_session(
+        root,
+        user_id=user["user_id"],
+        tenant_key="TENANT_A",
+        role="VIEWER",
+        ttl_minutes=30,
+        now=start,
+    )
+
+    identity = verify_session(root, token, now=start + timedelta(minutes=1))
+    assert identity["session_id"] == session["session_id"]
+    with connect_catalog(root) as conn:
+        seen = conn.execute(
+            "SELECT last_seen_at FROM workspace_session WHERE session_id=?",
+            (session["session_id"],),
+        ).fetchone()["last_seen_at"]
+    assert seen == start.isoformat()
+
+    identity = verify_session(root, token, now=start + timedelta(minutes=6))
+    assert identity["session_id"] == session["session_id"]
+    with connect_catalog(root) as conn:
+        seen = conn.execute(
+            "SELECT last_seen_at FROM workspace_session WHERE session_id=?",
+            (session["session_id"],),
+        ).fetchone()["last_seen_at"]
+    assert seen == (start + timedelta(minutes=6)).isoformat()
+
+    locker = sqlite3.connect(catalog_path(root), timeout=0.1)
+    try:
+        locker.execute("BEGIN IMMEDIATE")
+        identity = verify_session(
+            root,
+            token,
+            now=start + timedelta(minutes=12),
+        )
+        assert identity["session_id"] == session["session_id"]
+    finally:
+        locker.rollback()
+        locker.close()

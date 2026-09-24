@@ -60,6 +60,12 @@ The systemd example assumes:
 
 Adapt paths to the actual host. Do not make the repository or system directories writable merely to make deployment easier.
 
+## Login rate limiting
+
+The application has bounded in-process throttling to protect PBKDF2 and audit storage during the small single-process pilot.
+
+On the real host, also configure rate limiting at the reverse proxy or upstream network layer before inviting outside users. Infrastructure-level limits remain necessary because an in-process limiter does not coordinate across multiple application processes or hosts.
+
 ## Firewall
 
 The deployment should allow:

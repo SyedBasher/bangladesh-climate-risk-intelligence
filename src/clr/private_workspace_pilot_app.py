@@ -4,16 +4,21 @@ import hashlib
 import hmac
 import html
 import json
+import sqlite3
+import threading
+import time
+from collections import OrderedDict, deque
 from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, quote, urlparse
 
-from .local_store import connect_catalog
+from .local_store import canonical_tenant_key, connect_catalog
 from .private_decision_workspace import build_and_write_private_decision_workspace
 from .private_workspace_access import (
     DEFAULT_SESSION_MINUTES,
+    MAX_PASSWORD_CHARS,
     authenticate_user,
     create_session,
     record_audit_event,
@@ -31,6 +36,100 @@ from .private_workspace_app import (
 )
 
 PILOT_SESSION_COOKIE = "clr_pilot_session"
+MAX_LOGIN_FORM_BYTES = 4 * 1024
+MAX_LOGIN_USERNAME_CHARS = 128
+MAX_LOGIN_TENANT_CHARS = 128
+DEFAULT_LOGIN_ATTEMPTS_PER_KEY = 8
+DEFAULT_LOGIN_WINDOW_SECONDS = 5 * 60
+DEFAULT_LOGIN_GLOBAL_ATTEMPTS = 120
+DEFAULT_LOGIN_GLOBAL_WINDOW_SECONDS = 60
+MAX_LOGIN_RATE_KEYS = 2048
+
+
+class _LoginRateLimiter:
+    """Bound expensive password checks without retaining raw account identifiers."""
+
+    def __init__(
+        self,
+        *,
+        attempts_per_key: int = DEFAULT_LOGIN_ATTEMPTS_PER_KEY,
+        window_seconds: int = DEFAULT_LOGIN_WINDOW_SECONDS,
+        global_attempts: int = DEFAULT_LOGIN_GLOBAL_ATTEMPTS,
+        global_window_seconds: int = DEFAULT_LOGIN_GLOBAL_WINDOW_SECONDS,
+        max_keys: int = MAX_LOGIN_RATE_KEYS,
+    ):
+        self.attempts_per_key = max(1, int(attempts_per_key))
+        self.window_seconds = max(1, int(window_seconds))
+        self.global_attempts = max(1, int(global_attempts))
+        self.global_window_seconds = max(1, int(global_window_seconds))
+        self.max_keys = max(16, int(max_keys))
+        self._by_key: OrderedDict[str, deque[float]] = OrderedDict()
+        self._global: deque[float] = deque()
+        self._lock = threading.Lock()
+
+    @staticmethod
+    def key(username: str, tenant: str) -> str:
+        raw = f"{str(username).strip().casefold()}\x00{str(tenant)}"
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _prune(queue: deque[float], cutoff: float) -> None:
+        while queue and queue[0] <= cutoff:
+            queue.popleft()
+
+    def allow(self, username: str, tenant: str, *, now: float | None = None) -> bool:
+        current = time.monotonic() if now is None else float(now)
+        key = self.key(username, tenant)
+        with self._lock:
+            self._prune(
+                self._global,
+                current - self.global_window_seconds,
+            )
+            queue = self._by_key.get(key)
+            if queue is None:
+                queue = deque()
+                self._by_key[key] = queue
+            else:
+                self._by_key.move_to_end(key)
+            self._prune(queue, current - self.window_seconds)
+
+            if (
+                len(self._global) >= self.global_attempts
+                or len(queue) >= self.attempts_per_key
+            ):
+                return False
+
+            queue.append(current)
+            self._global.append(current)
+            while len(self._by_key) > self.max_keys:
+                self._by_key.popitem(last=False)
+            return True
+
+    def reset(self, username: str, tenant: str) -> None:
+        key = self.key(username, tenant)
+        with self._lock:
+            self._by_key.pop(key, None)
+
+
+def _login_audit_detail(username: str) -> dict[str, str]:
+    normalized = str(username).strip().casefold()[:MAX_LOGIN_USERNAME_CHARS]
+    return {
+        "username_sha256": hashlib.sha256(
+            normalized.encode("utf-8")
+        ).hexdigest()
+    }
+
+
+def _audit_tenant_or_none(tenant: str) -> str | None:
+    try:
+        return canonical_tenant_key(tenant)
+    except ValueError:
+        return None
+
+
+def _is_sqlite_busy(exc: sqlite3.OperationalError) -> bool:
+    message = str(exc).lower()
+    return "locked" in message or "busy" in message
 
 
 def _esc(value: Any) -> str:
@@ -102,9 +201,9 @@ def render_login(error: str | None = None) -> str:
 <p class="lead">Use your named pilot account and authorized tenant.</p>
 {error_html}
 <form method="post" action="/login">
-<div class="field"><label for="username">Username</label><input id="username" name="username" type="text" autocomplete="username" required></div>
-<div class="field"><label for="tenant">Tenant key</label><input id="tenant" name="tenant" type="text" autocomplete="organization" required></div>
-<div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>
+<div class="field"><label for="username">Username</label><input id="username" name="username" type="text" maxlength="{MAX_LOGIN_USERNAME_CHARS}" autocomplete="username" required></div>
+<div class="field"><label for="tenant">Tenant key</label><input id="tenant" name="tenant" type="text" maxlength="{MAX_LOGIN_TENANT_CHARS}" autocomplete="organization" required></div>
+<div class="field"><label for="password">Password</label><input id="password" name="password" type="password" maxlength="{MAX_PASSWORD_CHARS}" autocomplete="current-password" required></div>
 <button type="submit">Sign in</button></form></div>""",
     )
 
@@ -238,8 +337,18 @@ def make_pilot_handler(
     *,
     session_minutes: int = DEFAULT_SESSION_MINUTES,
     secure_cookie: bool = True,
+    login_attempts_per_key: int = DEFAULT_LOGIN_ATTEMPTS_PER_KEY,
+    login_window_seconds: int = DEFAULT_LOGIN_WINDOW_SECONDS,
+    login_global_attempts: int = DEFAULT_LOGIN_GLOBAL_ATTEMPTS,
+    login_global_window_seconds: int = DEFAULT_LOGIN_GLOBAL_WINDOW_SECONDS,
 ):
     private_root = _private_root(root)
+    login_limiter = _LoginRateLimiter(
+        attempts_per_key=login_attempts_per_key,
+        window_seconds=login_window_seconds,
+        global_attempts=login_global_attempts,
+        global_window_seconds=login_global_window_seconds,
+    )
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "CLRPrivatePilot/0.1"
@@ -295,6 +404,16 @@ def make_pilot_handler(
             headers.extend(extra or [])
             self._headers(303, content_length=0, extra=headers)
 
+        def _service_unavailable(self) -> None:
+            self._html(
+                503,
+                _layout(
+                    "Temporarily unavailable",
+                    '<div class="error">The private workspace is temporarily busy. Please retry.</div>',
+                ),
+                extra=[("Retry-After", "1")],
+            )
+
         def _token(self) -> str | None:
             return _parse_cookie(self.headers.get("Cookie")).get(PILOT_SESSION_COOKIE)
 
@@ -314,9 +433,15 @@ def make_pilot_handler(
                 return None, None
             return token, identity
 
-        def _form(self) -> dict[str, list[str]]:
+        def _form(
+            self,
+            *,
+            max_bytes: int = MAX_FORM_BYTES,
+        ) -> dict[str, list[str]]:
             length = int(self.headers.get("Content-Length", "0") or 0)
-            if length <= 0 or length > MAX_FORM_BYTES:
+            if length <= 0 or length > int(max_bytes):
+                if length > int(max_bytes):
+                    self.close_connection = True
                 raise ValueError("Invalid form size")
             ctype = self.headers.get("Content-Type", "")
             if not ctype.startswith("application/x-www-form-urlencoded"):
@@ -331,7 +456,7 @@ def make_pilot_handler(
                 f"SameSite=Strict; Max-Age={int(max_age)}{secure}"
             )
 
-        def do_GET(self) -> None:
+        def _do_GET(self) -> None:
             parsed = urlparse(self.path)
             if parsed.path == "/login":
                 _, identity = self._identity()
@@ -397,8 +522,6 @@ def make_pilot_handler(
                         if parsed.path == "/report"
                         else "application/json; charset=utf-8"
                     )
-                    self._headers(200, content_type=ctype, content_length=len(data))
-                    self.wfile.write(data)
                     record_audit_event(
                         private_root,
                         actor_user_id=identity["user_id"],
@@ -408,6 +531,8 @@ def make_pilot_handler(
                         target_type="REPORT_FILE",
                         target_id=target.name,
                     )
+                    self._headers(200, content_type=ctype, content_length=len(data))
+                    self.wfile.write(data)
                 except (ValueError, FileNotFoundError):
                     record_audit_event(
                         private_root,
@@ -421,14 +546,31 @@ def make_pilot_handler(
 
             self._html(404, _layout("Not found", "<h1>Not found</h1>", identity=identity))
 
-        def do_POST(self) -> None:
+        def _do_POST(self) -> None:
             parsed = urlparse(self.path)
             if parsed.path == "/login":
                 try:
-                    form = self._form()
-                    username = form.get("username", [""])[0].strip()
-                    tenant = form.get("tenant", [""])[0].strip()
+                    form = self._form(max_bytes=MAX_LOGIN_FORM_BYTES)
+                    username = form.get("username", [""])[0]
+                    tenant = form.get("tenant", [""])[0]
                     password = form.get("password", [""])[0]
+                    if (
+                        len(username) > MAX_LOGIN_USERNAME_CHARS
+                        or len(tenant) > MAX_LOGIN_TENANT_CHARS
+                        or len(password) > MAX_PASSWORD_CHARS
+                    ):
+                        self._html(
+                            401,
+                            render_login("Invalid account, tenant, or password."),
+                        )
+                        return
+                    if not login_limiter.allow(username, tenant):
+                        self._html(
+                            429,
+                            render_login("Too many sign-in attempts. Please retry later."),
+                            extra=[("Retry-After", "60")],
+                        )
+                        return
                     identity = authenticate_user(
                         private_root,
                         username=username,
@@ -439,20 +581,24 @@ def make_pilot_handler(
                         record_audit_event(
                             private_root,
                             actor_user_id=None,
-                            tenant_key=tenant or None,
+                            tenant_key=_audit_tenant_or_none(tenant),
                             action="LOGIN",
                             outcome="DENIED",
-                            detail={"username": username},
+                            detail=_login_audit_detail(username),
                         )
-                        self._html(401, render_login("Invalid account, tenant, or password."))
+                        self._html(
+                            401,
+                            render_login("Invalid account, tenant, or password."),
+                        )
                         return
+                    login_limiter.reset(username, tenant)
                     token, session = create_session(
                         private_root,
                         user_id=identity["user_id"],
                         tenant_key=identity["tenant_key"],
                         role=identity["role"],
                         ttl_minutes=session_minutes,
-                        user_agent=self.headers.get("User-Agent"),
+                        user_agent=(self.headers.get("User-Agent") or "")[:512],
                         client_label="PRIVATE_PILOT_WEB",
                     )
                     record_audit_event(
@@ -476,6 +622,8 @@ def make_pilot_handler(
                             )
                         ],
                     )
+                except sqlite3.OperationalError:
+                    raise
                 except Exception:
                     self._html(401, render_login("Sign-in failed."))
                 return
@@ -560,6 +708,8 @@ def make_pilot_handler(
                         },
                     )
                     self._redirect(f'/report?path={quote(result["outputs"]["html"])}')
+                except sqlite3.OperationalError:
+                    raise
                 except Exception as exc:
                     record_audit_event(
                         private_root,
@@ -581,6 +731,22 @@ def make_pilot_handler(
                 return
 
             self._html(404, _layout("Not found", "<h1>Not found</h1>", identity=identity))
+
+        def do_GET(self) -> None:
+            try:
+                self._do_GET()
+            except sqlite3.OperationalError as exc:
+                if not _is_sqlite_busy(exc):
+                    raise
+                self._service_unavailable()
+
+        def do_POST(self) -> None:
+            try:
+                self._do_POST()
+            except sqlite3.OperationalError as exc:
+                if not _is_sqlite_busy(exc):
+                    raise
+                self._service_unavailable()
 
     return Handler
 
