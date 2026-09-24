@@ -18,7 +18,7 @@ Use:
 - `2026-09-24-closure/TARGET_FINDINGS.md` — findings and required closure evidence;
 - `2026-09-24-closure/REPORT_TEMPLATE.md` — required report structure.
 
-The completed external review should be saved back into this folder as a new Markdown report. Do not overwrite the prompt or target matrix.
+The completed external review should first be written **locally** into this folder as a new Markdown report. Do not overwrite the prompt or target matrix. Review the report before publishing it: if it demonstrates a new unresolved Critical, High or Medium vulnerability, remediate that issue before committing the report to the public repository.
 
 ## Review independence
 
