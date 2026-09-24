@@ -811,6 +811,7 @@ def serve_private_pilot(
     port: int = 8766,
     session_minutes: int = DEFAULT_SESSION_MINUTES,
     secure_cookie: bool = True,
+    login_global_attempts: int = DEFAULT_LOGIN_GLOBAL_ATTEMPTS,
 ) -> None:
     if not _is_loopback_host(host):
         raise ValueError(
@@ -821,6 +822,7 @@ def serve_private_pilot(
         private_root,
         session_minutes=session_minutes,
         secure_cookie=secure_cookie,
+        login_global_attempts=login_global_attempts,
     )
     server = ThreadingHTTPServer((host, int(port)), handler)
     print(f"Private pilot backend: http://{host}:{int(port)}/")
