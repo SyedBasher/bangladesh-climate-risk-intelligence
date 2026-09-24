@@ -5,7 +5,7 @@ import uuid
 from pathlib import Path
 
 from .common import require_coordinate
-from .local_store import connect_catalog, utc_now
+from .local_store import canonical_tenant_key, connect_catalog, utc_now
 
 SITE_GRADES = {
     "EXACT_SITE", "PROBABLE_SITE", "LOCALITY_ONLY",
@@ -28,6 +28,7 @@ def _none(value):
 
 
 def import_asset_rows(root: str | Path, rows: list[dict], tenant_key: str = "INTERNAL") -> dict:
+    tenant_key = canonical_tenant_key(tenant_key)
     inserted = 0
     existing = 0
     rejected = []
@@ -102,6 +103,8 @@ def import_asset_csv(root: str | Path, csv_path: str | Path, tenant_key: str = "
 
 
 def accepted_assets(root: str | Path, tenant_key: str | None = None) -> list[dict]:
+    if tenant_key is not None:
+        tenant_key = canonical_tenant_key(tenant_key)
     sql = """
         SELECT asset_location_id,tenant_key,external_system,external_id,asset_type,
                latitude,longitude,coordinate_source,coordinate_precision_m,
@@ -122,6 +125,8 @@ def accepted_assets(root: str | Path, tenant_key: str | None = None) -> list[dic
 
 def coarse_climate_assets(root: str | Path, tenant_key: str | None = None) -> list[dict]:
     """Resolved coordinates suitable for coarse gridded climate layers (roughly >=1 km)."""
+    if tenant_key is not None:
+        tenant_key = canonical_tenant_key(tenant_key)
     sql = """
         SELECT asset_location_id,tenant_key,external_system,external_id,asset_type,
                latitude,longitude,coordinate_source,coordinate_precision_m,
