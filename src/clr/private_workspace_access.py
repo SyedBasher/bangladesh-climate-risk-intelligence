@@ -9,10 +9,12 @@ import re
 import secrets
 import sqlite3
 import threading
+import time
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .local_store import canonical_tenant_key, connect_catalog, utc_now
 
@@ -26,8 +28,15 @@ MAX_AUDIT_DETAIL_ITEMS = 20
 MAX_AUDIT_DETAIL_BYTES = 4096
 AUDIT_SECRET_FILE = "audit_chain_secret.bin"
 AUDIT_ANCHOR_FILE = "audit_head_anchor.json"
+AUDIT_PENDING_ANCHOR_FILE = "audit_head_anchor.pending.json"
+AUDIT_LOCK_FILE = "audit_append.lock"
 AUDIT_ANCHOR_VERSION = 1
+AUDIT_LOCK_TIMEOUT_SECONDS = 10.0
 _AUDIT_APPEND_LOCK = threading.RLock()
+
+
+class AuditStateError(RuntimeError):
+    """Audit state cannot be advanced safely."""
 _USERNAME_RE = re.compile(r"^[A-Za-z0-9._@+-]{3,128}$")
 ROLES = {"ADMIN", "ANALYST", "VIEWER"}
 PERMISSIONS = {
@@ -215,6 +224,20 @@ def _audit_anchor_path(root: str | Path) -> Path:
     return path
 
 
+def _audit_pending_anchor_path(root: str | Path) -> Path:
+    root = _private_root(root)
+    path = root / "auth" / AUDIT_PENDING_ANCHOR_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _audit_lock_path(root: str | Path) -> Path:
+    root = _private_root(root)
+    path = root / "auth" / AUDIT_LOCK_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def _anchor_body(
     *,
     event_count: int,
@@ -239,24 +262,26 @@ def _anchor_mac(secret: bytes, body: dict[str, Any]) -> str:
     return hmac.new(secret, payload, hashlib.sha256).hexdigest()
 
 
-def _write_audit_anchor(
+def _anchor_payload(
     root: str | Path,
     *,
     event_count: int,
     head_hash: str | None,
     updated_at: str | None = None,
 ) -> dict[str, Any]:
-    root = _private_root(root)
-    secret = _audit_secret(root)
     updated_at = updated_at or utc_now()
     body = _anchor_body(
         event_count=event_count,
         head_hash=head_hash,
         updated_at=updated_at,
     )
-    payload = dict(body)
-    payload["anchor_mac"] = _anchor_mac(secret, body)
-    path = _audit_anchor_path(root)
+    return {
+        **body,
+        "anchor_mac": _anchor_mac(_audit_secret(root), body),
+    }
+
+
+def _write_anchor_payload(path: Path, payload: dict[str, Any]) -> None:
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
@@ -271,18 +296,60 @@ def _write_audit_anchor(
         path.chmod(0o600)
     except OSError:
         pass
+
+
+def _write_audit_anchor(
+    root: str | Path,
+    *,
+    event_count: int,
+    head_hash: str | None,
+    updated_at: str | None = None,
+) -> dict[str, Any]:
+    root = _private_root(root)
+    payload = _anchor_payload(
+        root,
+        event_count=event_count,
+        head_hash=head_hash,
+        updated_at=updated_at,
+    )
+    path = _audit_anchor_path(root)
+    _write_anchor_payload(path, payload)
     return {
         "path": path.relative_to(root).as_posix(),
-        "event_count": int(event_count),
-        "head_hash": head_hash,
-        "updated_at": updated_at,
+        "event_count": int(payload["event_count"]),
+        "head_hash": payload.get("head_hash"),
+        "updated_at": payload["updated_at"],
     }
 
 
-def _read_audit_anchor(root: str | Path) -> dict[str, Any]:
-    path = _audit_anchor_path(root)
+def _stage_pending_anchor(
+    root: str | Path,
+    *,
+    event_count: int,
+    head_hash: str | None,
+    updated_at: str | None = None,
+) -> dict[str, Any]:
+    root = _private_root(root)
+    payload = _anchor_payload(
+        root,
+        event_count=event_count,
+        head_hash=head_hash,
+        updated_at=updated_at,
+    )
+    path = _audit_pending_anchor_path(root)
+    _write_anchor_payload(path, payload)
+    return payload
+
+
+def _read_anchor_file(
+    root: str | Path,
+    path: Path,
+    *,
+    missing_reason: str,
+) -> dict[str, Any]:
+    root = _private_root(root)
     if not path.exists():
-        return {"valid": False, "reason": "AUDIT_ANCHOR_MISSING"}
+        return {"valid": False, "reason": missing_reason}
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
         body = _anchor_body(
@@ -300,13 +367,354 @@ def _read_audit_anchor(root: str | Path) -> dict[str, Any]:
         "valid": True,
         "reason": None,
         **body,
-        "path": path.relative_to(_private_root(root)).as_posix(),
+        "path": path.relative_to(root).as_posix(),
     }
 
 
+def _read_audit_anchor(root: str | Path) -> dict[str, Any]:
+    return _read_anchor_file(
+        root,
+        _audit_anchor_path(root),
+        missing_reason="AUDIT_ANCHOR_MISSING",
+    )
+
+
+def _read_pending_anchor(root: str | Path) -> dict[str, Any]:
+    return _read_anchor_file(
+        root,
+        _audit_pending_anchor_path(root),
+        missing_reason="AUDIT_PENDING_ANCHOR_MISSING",
+    )
+
+
+@contextmanager
+def _audit_process_lock(
+    root: str | Path,
+    *,
+    timeout_seconds: float = AUDIT_LOCK_TIMEOUT_SECONDS,
+):
+    root = _private_root(root)
+    path = _audit_lock_path(root)
+    handle = path.open("a+b", buffering=0)
+    try:
+        try:
+            path.chmod(0o600)
+        except OSError:
+            pass
+        deadline = time.monotonic() + max(0.1, float(timeout_seconds))
+        if os.name == "nt":
+            import msvcrt
+
+            handle.seek(0, os.SEEK_END)
+            if handle.tell() == 0:
+                handle.write(b"0")
+            while True:
+                try:
+                    handle.seek(0)
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError as exc:
+                    if time.monotonic() >= deadline:
+                        raise AuditStateError(
+                            "Timed out waiting for the audit writer lock"
+                        ) from exc
+                    time.sleep(0.025)
+            try:
+                yield
+            finally:
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            while True:
+                try:
+                    fcntl.flock(
+                        handle.fileno(),
+                        fcntl.LOCK_EX | fcntl.LOCK_NB,
+                    )
+                    break
+                except BlockingIOError as exc:
+                    if time.monotonic() >= deadline:
+                        raise AuditStateError(
+                            "Timed out waiting for the audit writer lock"
+                        ) from exc
+                    time.sleep(0.025)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    finally:
+        handle.close()
+
+
+@contextmanager
+def _audit_write_guard(root: str | Path):
+    with _AUDIT_APPEND_LOCK:
+        with _audit_process_lock(root):
+            yield
+
+
 def _event_hash(secret: bytes, record: dict[str, Any]) -> str:
-    payload = json.dumps(record, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    payload = json.dumps(
+        record,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    return hmac.new(
+        secret,
+        payload.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _db_audit_state(conn: sqlite3.Connection) -> dict[str, Any]:
+    count = int(
+        conn.execute(
+            "SELECT count(*) AS n FROM workspace_audit_event"
+        ).fetchone()["n"]
+    )
+    head = conn.execute(
+        """
+        SELECT audit_event_id,event_hash
+        FROM workspace_audit_event
+        ORDER BY audit_event_id DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    return {
+        "event_count": count,
+        "head_hash": head["event_hash"] if head else None,
+        "head_event_id": head["audit_event_id"] if head else None,
+    }
+
+
+def _state_matches_anchor(
+    state: dict[str, Any],
+    anchor: dict[str, Any],
+) -> bool:
+    return bool(
+        anchor.get("valid")
+        and int(anchor["event_count"]) == int(state["event_count"])
+        and anchor.get("head_hash") == state.get("head_hash")
+    )
+
+
+def _recover_pending_anchor_locked(
+    root: str | Path,
+    conn: sqlite3.Connection,
+) -> dict[str, Any]:
+    root = _private_root(root)
+    pending_path = _audit_pending_anchor_path(root)
+    if not pending_path.exists():
+        return {"recovered": False, "discarded": False}
+
+    pending = _read_pending_anchor(root)
+    if not pending.get("valid"):
+        raise AuditStateError(
+            f"Pending audit anchor is invalid: {pending.get('reason')}"
+        )
+
+    state = _db_audit_state(conn)
+    current = _read_audit_anchor(root)
+
+    if _state_matches_anchor(state, pending):
+        try:
+            os.replace(pending_path, _audit_anchor_path(root))
+        except OSError as exc:
+            raise AuditStateError(
+                "Committed audit state has a valid pending anchor that "
+                "could not be promoted"
+            ) from exc
+        return {
+            "recovered": True,
+            "discarded": False,
+            "event_count": state["event_count"],
+            "head_hash": state["head_hash"],
+        }
+
+    if _state_matches_anchor(state, current):
+        pending_path.unlink(missing_ok=True)
+        return {"recovered": False, "discarded": True}
+
+    raise AuditStateError(
+        "Pending audit anchor matches neither the committed database "
+        "state nor the current anchor"
+    )
+
+
+def _require_anchor_matches_db_locked(
+    root: str | Path,
+    conn: sqlite3.Connection,
+) -> dict[str, Any]:
+    recovery = _recover_pending_anchor_locked(root, conn)
+    anchor = _read_audit_anchor(root)
+    if not anchor.get("valid"):
+        raise AuditStateError(
+            f"Audit anchor is not valid: {anchor.get('reason')}"
+        )
+    state = _db_audit_state(conn)
+    if not _state_matches_anchor(state, anchor):
+        raise AuditStateError(
+            "Audit database head no longer matches the authenticated anchor"
+        )
+    return {
+        "anchor": anchor,
+        "state": state,
+        "recovery": recovery,
+    }
+
+
+def _normalize_audit_event(
+    *,
+    actor_user_id: str | None,
+    tenant_key: str | None,
+    action: str,
+    outcome: str,
+    target_type: str | None,
+    target_id: str | None,
+    detail: dict[str, Any] | None,
+    occurred_at: str | None,
+) -> dict[str, Any]:
+    outcome_value = str(outcome).upper().strip()
+    if outcome_value not in {"SUCCESS", "DENIED", "FAILURE"}:
+        raise ValueError("Invalid audit outcome")
+    action_value = str(action).strip()
+    if not action_value:
+        raise ValueError("Audit action must be non-empty")
+    return {
+        "occurred_at": occurred_at or utc_now(),
+        "actor_user_id": actor_user_id,
+        "tenant_key": (
+            None if tenant_key is None else str(tenant_key)[:128]
+        ),
+        "action": action_value,
+        "target_type": (
+            None if target_type is None else str(target_type)[:64]
+        ),
+        "target_id": (
+            None
+            if target_id is None
+            else str(target_id)[:MAX_AUDIT_TEXT_CHARS]
+        ),
+        "outcome": outcome_value,
+        "detail": _bounded_audit_detail(detail),
+    }
+
+
+def _insert_audit_event_locked(
+    root: str | Path,
+    conn: sqlite3.Connection,
+    event: dict[str, Any],
+) -> dict[str, Any]:
+    prev = conn.execute(
+        """
+        SELECT event_hash
+        FROM workspace_audit_event
+        ORDER BY audit_event_id DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    prev_hash = prev["event_hash"] if prev else None
+    record = {
+        **event,
+        "prev_hash": prev_hash,
+    }
+    event_hash = _event_hash(_audit_secret(root), record)
+    cur = conn.execute(
+        """
+        INSERT INTO workspace_audit_event(
+            occurred_at,actor_user_id,tenant_key,action,target_type,target_id,
+            outcome,detail_json,prev_hash,event_hash
+        ) VALUES(?,?,?,?,?,?,?,?,?,?)
+        """,
+        (
+            event["occurred_at"],
+            event["actor_user_id"],
+            event["tenant_key"],
+            event["action"],
+            event["target_type"],
+            event["target_id"],
+            event["outcome"],
+            json.dumps(
+                event["detail"],
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            prev_hash,
+            event_hash,
+        ),
+    )
+    return {
+        "audit_event_id": cur.lastrowid,
+        "event_hash": event_hash,
+        "prev_hash": prev_hash,
+    }
+
+
+def _commit_audited_transaction_locked(
+    root: str | Path,
+    conn: sqlite3.Connection,
+    *,
+    updated_at: str,
+) -> dict[str, Any]:
+    state = _db_audit_state(conn)
+    _stage_pending_anchor(
+        root,
+        event_count=state["event_count"],
+        head_hash=state["head_hash"],
+        updated_at=updated_at,
+    )
+    try:
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+    pending_path = _audit_pending_anchor_path(root)
+    try:
+        os.replace(pending_path, _audit_anchor_path(root))
+    except OSError as exc:
+        raise AuditStateError(
+            "Audited database transaction committed, but the pending "
+            "audit anchor could not be promoted"
+        ) from exc
+    return state
+
+
+def _run_audited_transaction(
+    root: str | Path,
+    *,
+    event: dict[str, Any],
+    mutation: Callable[[sqlite3.Connection], Any],
+) -> tuple[Any, dict[str, Any]]:
+    root = _private_root(root)
+    with _audit_write_guard(root):
+        with connect_catalog(root) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            _require_anchor_matches_db_locked(root, conn)
+            try:
+                result = mutation(conn)
+                audit = _insert_audit_event_locked(
+                    root,
+                    conn,
+                    event,
+                )
+                state = _commit_audited_transaction_locked(
+                    root,
+                    conn,
+                    updated_at=event["occurred_at"],
+                )
+            except Exception:
+                try:
+                    conn.rollback()
+                finally:
+                    raise
+    return result, {
+        **audit,
+        "anchor_event_count": state["event_count"],
+    }
 
 
 def record_audit_event(
@@ -322,96 +730,75 @@ def record_audit_event(
     occurred_at: str | None = None,
 ) -> dict[str, Any]:
     root = _private_root(root)
-    outcome = str(outcome).upper().strip()
-    if outcome not in {"SUCCESS", "DENIED", "FAILURE"}:
-        raise ValueError("Invalid audit outcome")
-    action = str(action).strip()
-    if not action:
-        raise ValueError("Audit action must be non-empty")
-    occurred_at = occurred_at or utc_now()
-    clean_detail = _bounded_audit_detail(detail)
-    target_type = None if target_type is None else str(target_type)[:64]
-    target_id = (
-        None if target_id is None
-        else str(target_id)[:MAX_AUDIT_TEXT_CHARS]
+    event = _normalize_audit_event(
+        actor_user_id=actor_user_id,
+        tenant_key=tenant_key,
+        action=action,
+        outcome=outcome,
+        target_type=target_type,
+        target_id=target_id,
+        detail=detail,
+        occurred_at=occurred_at,
     )
-    tenant_key = None if tenant_key is None else str(tenant_key)[:128]
+    _, audit = _run_audited_transaction(
+        root,
+        event=event,
+        mutation=lambda conn: None,
+    )
+    return audit
 
-    with _AUDIT_APPEND_LOCK:
-        anchor = _read_audit_anchor(root)
-        if not anchor.get("valid"):
-            raise ValueError(
-                f"Audit anchor is not valid: {anchor.get('reason')}"
-            )
-        with connect_catalog(root) as conn:
-            conn.execute("BEGIN IMMEDIATE")
-            prev = conn.execute(
-                "SELECT event_hash FROM workspace_audit_event ORDER BY audit_event_id DESC LIMIT 1"
-            ).fetchone()
-            prev_hash = prev["event_hash"] if prev else None
-            current_count = int(
-                conn.execute(
-                    "SELECT count(*) AS n FROM workspace_audit_event"
-                ).fetchone()["n"]
-            )
-            if (
-                current_count != int(anchor["event_count"])
-                or prev_hash != anchor.get("head_hash")
-            ):
-                conn.rollback()
-                raise ValueError(
-                    "Audit database head no longer matches the external anchor"
-                )
-            record = {
-                "occurred_at": occurred_at,
-                "actor_user_id": actor_user_id,
-                "tenant_key": tenant_key,
-                "action": action,
-                "target_type": target_type,
-                "target_id": target_id,
-                "outcome": outcome,
-                "detail": clean_detail,
-                "prev_hash": prev_hash,
+
+def _verify_audit_rows(
+    rows: list[sqlite3.Row],
+    secret: bytes,
+) -> dict[str, Any]:
+    expected_prev = None
+    for index, row in enumerate(rows):
+        try:
+            detail = json.loads(row["detail_json"] or "{}")
+        except Exception:
+            return {
+                "valid": False,
+                "checked_events": index,
+                "failed_event_id": row["audit_event_id"],
+                "reason": "DETAIL_JSON_INVALID",
+                "head_hash": expected_prev,
             }
-            event_hash = _event_hash(_audit_secret(root), record)
-            cur = conn.execute(
-                """
-                INSERT INTO workspace_audit_event(
-                    occurred_at,actor_user_id,tenant_key,action,target_type,target_id,
-                    outcome,detail_json,prev_hash,event_hash
-                ) VALUES(?,?,?,?,?,?,?,?,?,?)
-                """,
-                (
-                    occurred_at,
-                    actor_user_id,
-                    tenant_key,
-                    action,
-                    target_type,
-                    target_id,
-                    outcome,
-                    json.dumps(
-                        clean_detail,
-                        sort_keys=True,
-                        separators=(",", ":"),
-                    ),
-                    prev_hash,
-                    event_hash,
-                ),
-            )
-            conn.commit()
-            new_count = current_count + 1
-
-        anchored = _write_audit_anchor(
-            root,
-            event_count=new_count,
-            head_hash=event_hash,
-            updated_at=occurred_at,
-        )
+        record = {
+            "occurred_at": row["occurred_at"],
+            "actor_user_id": row["actor_user_id"],
+            "tenant_key": row["tenant_key"],
+            "action": row["action"],
+            "target_type": row["target_type"],
+            "target_id": row["target_id"],
+            "outcome": row["outcome"],
+            "detail": detail,
+            "prev_hash": row["prev_hash"],
+        }
+        if row["prev_hash"] != expected_prev:
+            return {
+                "valid": False,
+                "checked_events": index,
+                "failed_event_id": row["audit_event_id"],
+                "reason": "PREVIOUS_HASH_MISMATCH",
+                "head_hash": expected_prev,
+            }
+        calculated = _event_hash(secret, record)
+        if not hmac.compare_digest(calculated, row["event_hash"]):
+            return {
+                "valid": False,
+                "checked_events": index,
+                "failed_event_id": row["audit_event_id"],
+                "reason": "EVENT_HASH_MISMATCH",
+                "head_hash": expected_prev,
+            }
+        expected_prev = row["event_hash"]
     return {
-        "audit_event_id": cur.lastrowid,
-        "event_hash": event_hash,
-        "prev_hash": prev_hash,
-        "anchor_event_count": anchored["event_count"],
+        "valid": True,
+        "checked_events": len(rows),
+        "failed_event_id": None,
+        "reason": None,
+        "head_hash": expected_prev,
     }
 
 
@@ -431,54 +818,31 @@ def verify_audit_chain(
             "reason": "AUDIT_SECRET_MISSING",
             "head_hash": None,
         }
-    with connect_catalog(root) as conn:
-        rows = conn.execute(
-            "SELECT * FROM workspace_audit_event ORDER BY audit_event_id"
-        ).fetchall()
-    expected_prev = None
-    for row in rows:
-        detail = json.loads(row["detail_json"] or "{}")
-        record = {
-            "occurred_at": row["occurred_at"],
-            "actor_user_id": row["actor_user_id"],
-            "tenant_key": row["tenant_key"],
-            "action": row["action"],
-            "target_type": row["target_type"],
-            "target_id": row["target_id"],
-            "outcome": row["outcome"],
-            "detail": detail,
-            "prev_hash": row["prev_hash"],
-        }
-        if row["prev_hash"] != expected_prev:
-            return {
-                "valid": False,
-                "checked_events": int(row["audit_event_id"]) - 1,
-                "failed_event_id": row["audit_event_id"],
-                "reason": "PREVIOUS_HASH_MISMATCH",
-                "head_hash": expected_prev,
-            }
-        calculated = _event_hash(secret, record)
-        if not hmac.compare_digest(calculated, row["event_hash"]):
-            return {
-                "valid": False,
-                "checked_events": int(row["audit_event_id"]) - 1,
-                "failed_event_id": row["audit_event_id"],
-                "reason": "EVENT_HASH_MISMATCH",
-                "head_hash": expected_prev,
-            }
-        expected_prev = row["event_hash"]
 
-    result = {
-        "valid": True,
-        "checked_events": len(rows),
-        "failed_event_id": None,
-        "reason": None,
-        "head_hash": expected_prev,
-    }
-    if not require_anchor:
+    with _audit_write_guard(root):
+        with connect_catalog(root) as conn:
+            if require_anchor:
+                try:
+                    _recover_pending_anchor_locked(root, conn)
+                except AuditStateError as exc:
+                    return {
+                        "valid": False,
+                        "checked_events": 0,
+                        "failed_event_id": None,
+                        "reason": "AUDIT_ANCHOR_RECOVERY_FAILED",
+                        "head_hash": None,
+                        "error": str(exc),
+                    }
+            rows = conn.execute(
+                "SELECT * FROM workspace_audit_event ORDER BY audit_event_id"
+            ).fetchall()
+            anchor = _read_audit_anchor(root) if require_anchor else None
+
+    result = _verify_audit_rows(rows, secret)
+    if not result["valid"] or not require_anchor:
         return result
 
-    anchor = _read_audit_anchor(root)
+    assert anchor is not None
     if not anchor.get("valid"):
         return {
             **result,
@@ -492,7 +856,7 @@ def verify_audit_chain(
             "reason": "EVENT_COUNT_MISMATCH",
             "anchor_event_count": int(anchor["event_count"]),
         }
-    if anchor.get("head_hash") != expected_prev:
+    if anchor.get("head_hash") != result["head_hash"]:
         return {
             **result,
             "valid": False,
@@ -506,32 +870,129 @@ def verify_audit_chain(
 
 def initialize_audit_anchor(root: str | Path) -> dict[str, Any]:
     root = _private_root(root)
-    path = _audit_anchor_path(root)
-    if path.exists():
-        anchor = _read_audit_anchor(root)
-        if not anchor.get("valid"):
-            raise ValueError(
-                f"Existing audit anchor is invalid: {anchor.get('reason')}"
-            )
-        return {
-            "path": anchor["path"],
-            "event_count": int(anchor["event_count"]),
-            "head_hash": anchor.get("head_hash"),
-            "bootstrapped": False,
-        }
+    with _audit_write_guard(root):
+        path = _audit_anchor_path(root)
+        with connect_catalog(root) as conn:
+            if path.exists():
+                _recover_pending_anchor_locked(root, conn)
+                anchor = _read_audit_anchor(root)
+                if not anchor.get("valid"):
+                    raise AuditStateError(
+                        f"Existing audit anchor is invalid: "
+                        f"{anchor.get('reason')}"
+                    )
+                return {
+                    "path": anchor["path"],
+                    "event_count": int(anchor["event_count"]),
+                    "head_hash": anchor.get("head_hash"),
+                    "bootstrapped": False,
+                }
 
-    chain = verify_audit_chain(root, require_anchor=False)
-    if not chain["valid"]:
-        raise ValueError(
-            f"Cannot bootstrap audit anchor from invalid chain: {chain['reason']}"
-        )
-    anchored = _write_audit_anchor(
-        root,
-        event_count=int(chain["checked_events"]),
-        head_hash=chain.get("head_hash"),
-    )
-    anchored["bootstrapped"] = True
-    return anchored
+            rows = conn.execute(
+                "SELECT * FROM workspace_audit_event ORDER BY audit_event_id"
+            ).fetchall()
+            chain = _verify_audit_rows(rows, _audit_secret(root))
+            if not chain["valid"]:
+                raise AuditStateError(
+                    "Cannot initialize an audit anchor from an invalid chain: "
+                    f"{chain['reason']}"
+                )
+            if chain["checked_events"]:
+                raise AuditStateError(
+                    "Existing audit history has no authenticated anchor. "
+                    "Use the explicit re-anchor command with an operator reason."
+                )
+            anchored = _write_audit_anchor(
+                root,
+                event_count=0,
+                head_hash=None,
+            )
+            anchored["bootstrapped"] = True
+            return anchored
+
+
+def reanchor_audit(
+    root: str | Path,
+    *,
+    actor_user_id: str | None,
+    reason: str,
+) -> dict[str, Any]:
+    root = _private_root(root)
+    reason_value = str(reason).strip()
+    if not reason_value:
+        raise ValueError("A re-anchor reason is required")
+    reason_value = reason_value[:MAX_AUDIT_TEXT_CHARS]
+
+    with _audit_write_guard(root):
+        with connect_catalog(root) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            admin = conn.execute(
+                """
+                SELECT 1
+                FROM workspace_user u
+                JOIN workspace_tenant_membership m
+                  ON m.user_id=u.user_id
+                WHERE u.user_id=?
+                  AND u.is_active=1
+                  AND m.role='ADMIN'
+                LIMIT 1
+                """,
+                (actor_user_id,),
+            ).fetchone()
+            if admin is None:
+                conn.rollback()
+                raise PermissionError(
+                    "Audit re-anchor requires an active ADMIN actor"
+                )
+
+            rows = conn.execute(
+                "SELECT * FROM workspace_audit_event ORDER BY audit_event_id"
+            ).fetchall()
+            chain = _verify_audit_rows(rows, _audit_secret(root))
+            if not chain["valid"]:
+                conn.rollback()
+                raise AuditStateError(
+                    "Cannot re-anchor an invalid audit chain: "
+                    f"{chain['reason']}"
+                )
+
+            old_anchor = _read_audit_anchor(root)
+            current_state = _db_audit_state(conn)
+            if _state_matches_anchor(current_state, old_anchor):
+                conn.rollback()
+                raise ValueError(
+                    "Audit anchor already matches the database; "
+                    "re-anchor is not required"
+                )
+            event = _normalize_audit_event(
+                actor_user_id=actor_user_id,
+                tenant_key=None,
+                action="AUDIT_ANCHOR_RESET",
+                outcome="SUCCESS",
+                target_type="AUDIT_CHAIN",
+                target_id=None,
+                detail={
+                    "reason": reason_value,
+                    "previous_anchor_reason": old_anchor.get("reason"),
+                    "previous_anchor_event_count": old_anchor.get(
+                        "event_count"
+                    ),
+                    "current_chain_event_count": chain["checked_events"],
+                },
+                occurred_at=utc_now(),
+            )
+            audit = _insert_audit_event_locked(root, conn, event)
+            state = _commit_audited_transaction_locked(
+                root,
+                conn,
+                updated_at=event["occurred_at"],
+            )
+
+    return {
+        **audit,
+        "anchor_event_count": state["event_count"],
+        "reason": reason_value,
+    }
 
 
 def create_user(
@@ -548,19 +1009,34 @@ def create_user(
     if len(password) < 12:
         raise ValueError("Password must contain at least 12 characters")
     if len(password) > MAX_PASSWORD_CHARS:
-        raise ValueError(f"Password cannot exceed {MAX_PASSWORD_CHARS} characters")
+        raise ValueError(
+            f"Password cannot exceed {MAX_PASSWORD_CHARS} characters"
+        )
     if iterations < 100_000:
         raise ValueError("PBKDF2 iterations must be at least 100000")
+
     salt = secrets.token_bytes(16)
     digest = _password_digest(password, salt, iterations)
     user_id = str(uuid.uuid4())
     now = utc_now()
-    with connect_catalog(root) as conn:
+    event = _normalize_audit_event(
+        actor_user_id=actor_user_id,
+        tenant_key=None,
+        action="USER_CREATED",
+        outcome="SUCCESS",
+        target_type="USER",
+        target_id=user_id,
+        detail={"username": username},
+        occurred_at=now,
+    )
+
+    def mutation(conn: sqlite3.Connection) -> None:
         conn.execute(
             """
             INSERT INTO workspace_user(
                 user_id,username,display_name,password_hash,password_salt,
-                password_iterations,is_active,created_at,updated_at,password_changed_at
+                password_iterations,is_active,created_at,updated_at,
+                password_changed_at
             ) VALUES(?,?,?,?,?,?,?,?,?,?)
             """,
             (
@@ -576,18 +1052,17 @@ def create_user(
                 now,
             ),
         )
-        conn.commit()
-    record_audit_event(
+
+    _run_audited_transaction(
         root,
-        actor_user_id=actor_user_id,
-        tenant_key=None,
-        action="USER_CREATED",
-        outcome="SUCCESS",
-        target_type="USER",
-        target_id=user_id,
-        detail={"username": username},
+        event=event,
+        mutation=mutation,
     )
-    return {"user_id": user_id, "username": username, "is_active": True}
+    return {
+        "user_id": user_id,
+        "username": username,
+        "is_active": True,
+    }
 
 
 def set_user_password(
@@ -604,7 +1079,18 @@ def set_user_password(
     salt = secrets.token_bytes(16)
     digest = _password_digest(password, salt, iterations)
     now = utc_now()
-    with connect_catalog(root) as conn:
+    event = _normalize_audit_event(
+        actor_user_id=actor_user_id,
+        tenant_key=None,
+        action="PASSWORD_CHANGED",
+        outcome="SUCCESS",
+        target_type="USER",
+        target_id=user_id,
+        detail=None,
+        occurred_at=now,
+    )
+
+    def mutation(conn: sqlite3.Connection) -> None:
         cur = conn.execute(
             """
             UPDATE workspace_user
@@ -612,7 +1098,14 @@ def set_user_password(
                 updated_at=?,password_changed_at=?
             WHERE user_id=?
             """,
-            (_b64e(digest), _b64e(salt), int(iterations), now, now, user_id),
+            (
+                _b64e(digest),
+                _b64e(salt),
+                int(iterations),
+                now,
+                now,
+                user_id,
+            ),
         )
         if cur.rowcount != 1:
             raise KeyError(f"Unknown user: {user_id}")
@@ -624,15 +1117,11 @@ def set_user_password(
             """,
             (now, user_id),
         )
-        conn.commit()
-    record_audit_event(
+
+    _run_audited_transaction(
         root,
-        actor_user_id=actor_user_id,
-        tenant_key=None,
-        action="PASSWORD_CHANGED",
-        outcome="SUCCESS",
-        target_type="USER",
-        target_id=user_id,
+        event=event,
+        mutation=mutation,
     )
 
 
@@ -645,27 +1134,42 @@ def set_user_active(
 ) -> None:
     root = _private_root(root)
     now = utc_now()
-    with connect_catalog(root) as conn:
-        cur = conn.execute(
-            "UPDATE workspace_user SET is_active=?,updated_at=? WHERE user_id=?",
-            (1 if is_active else 0, now, user_id),
-        )
-        if cur.rowcount != 1:
-            raise KeyError(f"Unknown user: {user_id}")
-        if not is_active:
-            conn.execute(
-                "UPDATE workspace_session SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL",
-                (now, user_id),
-            )
-        conn.commit()
-    record_audit_event(
-        root,
+    event = _normalize_audit_event(
         actor_user_id=actor_user_id,
         tenant_key=None,
         action="USER_ENABLED" if is_active else "USER_DISABLED",
         outcome="SUCCESS",
         target_type="USER",
         target_id=user_id,
+        detail=None,
+        occurred_at=now,
+    )
+
+    def mutation(conn: sqlite3.Connection) -> None:
+        cur = conn.execute(
+            """
+            UPDATE workspace_user
+            SET is_active=?,updated_at=?
+            WHERE user_id=?
+            """,
+            (1 if is_active else 0, now, user_id),
+        )
+        if cur.rowcount != 1:
+            raise KeyError(f"Unknown user: {user_id}")
+        if not is_active:
+            conn.execute(
+                """
+                UPDATE workspace_session
+                SET revoked_at=?
+                WHERE user_id=? AND revoked_at IS NULL
+                """,
+                (now, user_id),
+            )
+
+    _run_audited_transaction(
+        root,
+        event=event,
+        mutation=mutation,
     )
 
 
@@ -681,7 +1185,18 @@ def grant_membership(
     tenant = _validate_tenant(tenant_key)
     role = _validate_role(role)
     now = utc_now()
-    with connect_catalog(root) as conn:
+    event = _normalize_audit_event(
+        actor_user_id=actor_user_id,
+        tenant_key=tenant,
+        action="MEMBERSHIP_GRANTED",
+        outcome="SUCCESS",
+        target_type="USER",
+        target_id=user_id,
+        detail={"role": role},
+        occurred_at=now,
+    )
+
+    def mutation(conn: sqlite3.Connection) -> None:
         user = conn.execute(
             "SELECT 1 FROM workspace_user WHERE user_id=?",
             (user_id,),
@@ -706,16 +1221,11 @@ def grant_membership(
             """,
             (now, user_id, tenant),
         )
-        conn.commit()
-    record_audit_event(
+
+    _run_audited_transaction(
         root,
-        actor_user_id=actor_user_id,
-        tenant_key=tenant,
-        action="MEMBERSHIP_GRANTED",
-        outcome="SUCCESS",
-        target_type="USER",
-        target_id=user_id,
-        detail={"role": role},
+        event=event,
+        mutation=mutation,
     )
 
 
@@ -729,9 +1239,23 @@ def revoke_membership(
     root = _private_root(root)
     tenant = _validate_tenant(tenant_key)
     now = utc_now()
-    with connect_catalog(root) as conn:
+    event = _normalize_audit_event(
+        actor_user_id=actor_user_id,
+        tenant_key=tenant,
+        action="MEMBERSHIP_REVOKED",
+        outcome="SUCCESS",
+        target_type="USER",
+        target_id=user_id,
+        detail=None,
+        occurred_at=now,
+    )
+
+    def mutation(conn: sqlite3.Connection) -> None:
         conn.execute(
-            "DELETE FROM workspace_tenant_membership WHERE user_id=? AND tenant_key=?",
+            """
+            DELETE FROM workspace_tenant_membership
+            WHERE user_id=? AND tenant_key=?
+            """,
             (user_id, tenant),
         )
         conn.execute(
@@ -742,15 +1266,11 @@ def revoke_membership(
             """,
             (now, user_id, tenant),
         )
-        conn.commit()
-    record_audit_event(
+
+    _run_audited_transaction(
         root,
-        actor_user_id=actor_user_id,
-        tenant_key=tenant,
-        action="MEMBERSHIP_REVOKED",
-        outcome="SUCCESS",
-        target_type="USER",
-        target_id=user_id,
+        event=event,
+        mutation=mutation,
     )
 
 

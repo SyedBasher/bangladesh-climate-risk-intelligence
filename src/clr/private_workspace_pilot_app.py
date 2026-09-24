@@ -17,6 +17,7 @@ from urllib.parse import parse_qs, quote, urlparse
 from .local_store import canonical_tenant_key, connect_catalog
 from .private_decision_workspace import build_and_write_private_decision_workspace
 from .private_workspace_access import (
+    AuditStateError,
     DEFAULT_SESSION_MINUTES,
     MAX_PASSWORD_CHARS,
     authenticate_user,
@@ -409,7 +410,7 @@ def make_pilot_handler(
                 503,
                 _layout(
                     "Temporarily unavailable",
-                    '<div class="error">The private workspace is temporarily busy. Please retry.</div>',
+                    '<div class="error">The private workspace is temporarily unavailable. Please retry or contact the administrator.</div>',
                 ),
                 extra=[("Retry-After", "1")],
             )
@@ -643,7 +644,7 @@ def make_pilot_handler(
                             )
                         ],
                     )
-                except sqlite3.OperationalError:
+                except (sqlite3.OperationalError, AuditStateError):
                     raise
                 except Exception:
                     self._html(401, render_login("Sign-in failed."))
@@ -729,7 +730,7 @@ def make_pilot_handler(
                         },
                     )
                     self._redirect(f'/report?path={quote(result["outputs"]["html"])}')
-                except sqlite3.OperationalError:
+                except (sqlite3.OperationalError, AuditStateError):
                     raise
                 except Exception as exc:
                     record_audit_event(
@@ -756,6 +757,8 @@ def make_pilot_handler(
         def do_GET(self) -> None:
             try:
                 self._do_GET()
+            except AuditStateError:
+                self._service_unavailable()
             except sqlite3.OperationalError as exc:
                 if not _is_sqlite_busy(exc):
                     raise
@@ -764,6 +767,8 @@ def make_pilot_handler(
         def do_POST(self) -> None:
             try:
                 self._do_POST()
+            except AuditStateError:
+                self._service_unavailable()
             except sqlite3.OperationalError as exc:
                 if not _is_sqlite_busy(exc):
                     raise

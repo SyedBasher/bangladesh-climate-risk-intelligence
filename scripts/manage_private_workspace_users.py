@@ -14,6 +14,7 @@ from clr.local_store import connect_catalog
 from clr.private_workspace_access import (
     create_user,
     grant_membership,
+    reanchor_audit,
     revoke_membership,
     set_user_active,
     set_user_password,
@@ -129,6 +130,16 @@ def main() -> None:
 
     sub.add_parser("verify-audit")
 
+    p = sub.add_parser(
+        "reanchor-audit",
+        help=(
+            "Explicitly reset the authenticated audit head after investigation. "
+            "The underlying HMAC chain must still verify."
+        ),
+    )
+    p.add_argument("--reason", required=True)
+    p.add_argument("--actor-username", required=True)
+
     args = parser.parse_args()
     root = _root()
 
@@ -152,6 +163,20 @@ def main() -> None:
         result = verify_audit_chain(root)
         print(json.dumps(result, indent=2))
         raise SystemExit(0 if result["valid"] else 2)
+
+    if args.command == "reanchor-audit":
+        actor_user_id = _actor_user_id(
+            root,
+            args.actor_username,
+            bootstrap_allowed=False,
+        )
+        result = reanchor_audit(
+            root,
+            actor_user_id=actor_user_id,
+            reason=args.reason,
+        )
+        print(json.dumps(result, indent=2))
+        return
 
     actor_user_id = _actor_user_id(
         root,

@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from multiprocessing import get_context
 from pathlib import Path
 
 import json
@@ -11,12 +12,14 @@ import clr.private_workspace_access as access_module
 
 from clr.local_store import catalog_path, connect_catalog, initialize_workspace
 from clr.private_workspace_access import (
+    AuditStateError,
     access_schema_ready,
     apply_access_schema,
     authenticate_user,
     create_session,
     create_user,
     grant_membership,
+    reanchor_audit,
     record_audit_event,
     revoke_membership,
     role_allows,
@@ -35,6 +38,28 @@ def _workspace(tmp_path):
     initialize_workspace(root, ROOT / "migrations" / "000_local_private_data_plane.sql")
     apply_access_schema(root, ROOT / "migrations" / "001_private_workspace_access.sql")
     return root
+
+
+def _multiprocess_audit_worker(root_text, start_index, count, queue):
+    root = Path(root_text)
+    try:
+        for offset in range(count):
+            record_audit_event(
+                root,
+                actor_user_id=None,
+                tenant_key="TENANT_A",
+                action="MULTIPROCESS_TEST",
+                outcome="SUCCESS",
+                target_type="TEST",
+                target_id=str(start_index + offset),
+            )
+        queue.put({"ok": True, "count": count})
+    except BaseException as exc:
+        queue.put({
+            "ok": False,
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+        })
 
 
 def test_access_schema_is_idempotent(tmp_path):
@@ -501,3 +526,277 @@ def test_audit_anchor_tampering_is_detected(tmp_path):
     result = verify_audit_chain(root)
     assert not result["valid"]
     assert result["reason"] == "AUDIT_ANCHOR_MAC_MISMATCH"
+
+
+def test_pending_anchor_recovers_committed_event_after_promotion_failure(
+    tmp_path,
+    monkeypatch,
+):
+    root = _workspace(tmp_path)
+    real_replace = access_module.os.replace
+
+    def fail_only_final_promotion(src, dst):
+        if (
+            Path(src).name == access_module.AUDIT_PENDING_ANCHOR_FILE
+            and Path(dst).name == access_module.AUDIT_ANCHOR_FILE
+        ):
+            raise OSError("synthetic anchor promotion failure")
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(
+        access_module.os,
+        "replace",
+        fail_only_final_promotion,
+    )
+    with pytest.raises(
+        AuditStateError,
+        match="transaction committed",
+    ):
+        record_audit_event(
+            root,
+            actor_user_id=None,
+            tenant_key="TENANT_A",
+            action="CRASH_WINDOW_TEST",
+            outcome="SUCCESS",
+        )
+
+    pending = (
+        root
+        / "auth"
+        / access_module.AUDIT_PENDING_ANCHOR_FILE
+    )
+    assert pending.exists()
+    with connect_catalog(root) as conn:
+        assert conn.execute(
+            "SELECT count(*) AS n FROM workspace_audit_event"
+        ).fetchone()["n"] == 1
+
+    monkeypatch.undo()
+
+    recovered = verify_audit_chain(root)
+    assert recovered["valid"]
+    assert recovered["checked_events"] == 1
+    assert not pending.exists()
+
+    record_audit_event(
+        root,
+        actor_user_id=None,
+        tenant_key="TENANT_A",
+        action="AFTER_RECOVERY",
+        outcome="SUCCESS",
+    )
+    assert verify_audit_chain(root)["checked_events"] == 2
+
+
+def test_precommit_pending_anchor_is_discarded_when_database_did_not_advance(
+    tmp_path,
+):
+    root = _workspace(tmp_path)
+    access_module._stage_pending_anchor(
+        root,
+        event_count=1,
+        head_hash="synthetic-future-head",
+        updated_at="2026-09-24T00:00:00+00:00",
+    )
+    pending = (
+        root
+        / "auth"
+        / access_module.AUDIT_PENDING_ANCHOR_FILE
+    )
+    assert pending.exists()
+
+    result = verify_audit_chain(root)
+    assert result["valid"]
+    assert result["checked_events"] == 0
+    assert not pending.exists()
+
+
+def test_privileged_mutation_rolls_back_when_audit_anchor_is_invalid(tmp_path):
+    root = _workspace(tmp_path)
+    user = create_user(
+        root,
+        username="atomic-user",
+        password="synthetic-long-password",
+        iterations=100_000,
+    )
+    anchor = root / "auth" / access_module.AUDIT_ANCHOR_FILE
+    payload = json.loads(anchor.read_text(encoding="utf-8"))
+    payload["event_count"] = int(payload["event_count"]) + 1
+    anchor.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(AuditStateError):
+        set_user_active(
+            root,
+            user_id=user["user_id"],
+            is_active=False,
+        )
+
+    with connect_catalog(root) as conn:
+        current = conn.execute(
+            "SELECT is_active FROM workspace_user WHERE user_id=?",
+            (user["user_id"],),
+        ).fetchone()["is_active"]
+        disabled_events = conn.execute(
+            """
+            SELECT count(*) AS n
+            FROM workspace_audit_event
+            WHERE action='USER_DISABLED'
+              AND target_id=?
+            """,
+            (user["user_id"],),
+        ).fetchone()["n"]
+    assert current == 1
+    assert disabled_events == 0
+
+
+def test_explicit_reanchor_records_reset_after_investigated_tail_loss(tmp_path):
+    root = _workspace(tmp_path)
+    user = create_user(
+        root,
+        username="reanchor-admin",
+        password="synthetic-long-password",
+        iterations=100_000,
+    )
+    grant_membership(
+        root,
+        user_id=user["user_id"],
+        tenant_key="TENANT_A",
+        role="ADMIN",
+    )
+    record_audit_event(
+        root,
+        actor_user_id=user["user_id"],
+        tenant_key="TENANT_A",
+        action="BEFORE_TAIL_LOSS",
+        outcome="SUCCESS",
+    )
+    with connect_catalog(root) as conn:
+        conn.execute(
+            """
+            DELETE FROM workspace_audit_event
+            WHERE audit_event_id=(
+                SELECT max(audit_event_id)
+                FROM workspace_audit_event
+            )
+            """
+        )
+        conn.commit()
+
+    broken = verify_audit_chain(root)
+    assert not broken["valid"]
+    assert broken["reason"] == "EVENT_COUNT_MISMATCH"
+
+    reset = reanchor_audit(
+        root,
+        actor_user_id=user["user_id"],
+        reason="synthetic investigated tail-loss recovery",
+    )
+    assert reset["reason"] == "synthetic investigated tail-loss recovery"
+
+    chain = verify_audit_chain(root)
+    assert chain["valid"]
+    with connect_catalog(root) as conn:
+        row = conn.execute(
+            """
+            SELECT action,actor_user_id,detail_json
+            FROM workspace_audit_event
+            ORDER BY audit_event_id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+    assert row["action"] == "AUDIT_ANCHOR_RESET"
+    assert row["actor_user_id"] == user["user_id"]
+    assert "synthetic investigated tail-loss recovery" in row["detail_json"]
+
+
+def test_missing_anchor_with_existing_history_requires_explicit_reanchor(tmp_path):
+    root = _workspace(tmp_path)
+    record_audit_event(
+        root,
+        actor_user_id=None,
+        tenant_key="TENANT_A",
+        action="EXISTING_HISTORY",
+        outcome="SUCCESS",
+    )
+    (root / "auth" / access_module.AUDIT_ANCHOR_FILE).unlink()
+
+    with pytest.raises(
+        AuditStateError,
+        match="explicit re-anchor",
+    ):
+        access_module.initialize_audit_anchor(root)
+
+
+def test_multiprocess_audit_appends_are_serialized(tmp_path):
+    root = _workspace(tmp_path)
+    ctx = get_context("spawn")
+    queue = ctx.Queue()
+    processes = [
+        ctx.Process(
+            target=_multiprocess_audit_worker,
+            args=(str(root), worker * 4, 4, queue),
+        )
+        for worker in range(3)
+    ]
+    for process in processes:
+        process.start()
+    for process in processes:
+        process.join(timeout=30)
+        assert not process.is_alive()
+        assert process.exitcode == 0
+
+    results = [queue.get(timeout=5) for _ in processes]
+    assert all(item["ok"] for item in results), results
+
+    chain = verify_audit_chain(root)
+    assert chain["valid"]
+    assert chain["checked_events"] == 12
+    with connect_catalog(root) as conn:
+        assert conn.execute(
+            """
+            SELECT count(*) AS n
+            FROM workspace_audit_event
+            WHERE action='MULTIPROCESS_TEST'
+            """
+        ).fetchone()["n"] == 12
+
+
+def test_reanchor_requires_active_admin_actor(tmp_path):
+    root = _workspace(tmp_path)
+    user = create_user(
+        root,
+        username="reanchor-viewer",
+        password="synthetic-long-password",
+        iterations=100_000,
+    )
+    grant_membership(
+        root,
+        user_id=user["user_id"],
+        tenant_key="TENANT_A",
+        role="VIEWER",
+    )
+    record_audit_event(
+        root,
+        actor_user_id=user["user_id"],
+        tenant_key="TENANT_A",
+        action="TAIL_EVENT_FOR_REANCHOR_AUTH",
+        outcome="SUCCESS",
+    )
+    with connect_catalog(root) as conn:
+        conn.execute(
+            """
+            DELETE FROM workspace_audit_event
+            WHERE audit_event_id=(
+                SELECT max(audit_event_id)
+                FROM workspace_audit_event
+            )
+            """
+        )
+        conn.commit()
+
+    with pytest.raises(PermissionError, match="active ADMIN"):
+        reanchor_audit(
+            root,
+            actor_user_id=user["user_id"],
+            reason="viewer must not reset audit trust",
+        )

@@ -162,9 +162,17 @@ The session token remains only in the HttpOnly cookie; the derived CSRF value is
 
 The pre-authentication `POST /login` path additionally checks the browser `Origin` header when present. Cross-origin browser login posts are rejected before password verification. Non-browser clients without an `Origin` header remain supported for controlled testing.
 
-## Audit chain and head anchor
+## Audit chain, transaction journal and head anchor
 
 Security-relevant actions create `workspace_audit_event` rows.
+
+Audit writers are serialized across both threads and processes. The application uses an in-process re-entrant lock plus an operating-system file lock at:
+
+`private_data/auth/audit_append.lock`
+
+The lock covers the anchor read, SQLite audited transaction, pending-anchor staging, commit, and final anchor promotion.
+
+Privileged access mutations such as user creation, password change, enable/disable, membership grant and membership revoke are committed in the **same SQLite transaction** as their audit event. If the audited transaction cannot be prepared safely, the access mutation rolls back rather than persisting without an audit record.
 
 In addition to the HMAC-linked rows in SQLite, the pilot maintains:
 
@@ -172,12 +180,40 @@ In addition to the HMAC-linked rows in SQLite, the pilot maintains:
 
 The anchor records the expected audit event count and current head hash and is itself authenticated with the audit HMAC key.
 
+
+Before an audited SQLite transaction commits, the service writes a signed future anchor to:
+
+`private_data/auth/audit_head_anchor.pending.json`
+
+The crash-recovery protocol is:
+
+1. stage the authenticated pending anchor;
+2. commit the SQLite transaction;
+3. atomically promote the pending file to `audit_head_anchor.json`.
+
+If the process stops before the database commit, the current database still matches the current anchor and the stale pending file is discarded automatically. If the database commit succeeds but final anchor promotion is interrupted, the database matches the authenticated pending anchor and the pending anchor is promoted automatically on the next audit write or verification.
+
+A pending anchor that matches neither committed state nor the current anchor fails closed.
+
 Verification therefore checks both:
 
 - the internal event-to-event hash chain;
 - the externally stored event count/head anchor.
 
 Deleting the newest SQLite audit rows now produces `EVENT_COUNT_MISMATCH` instead of a false valid result.
+
+
+**Do not repair an audit mismatch by deleting the anchor file.** Initialization now refuses to bootstrap a missing anchor over non-empty audit history.
+
+After investigation, an ADMIN can perform an explicit trust reset:
+
+```bash
+python scripts/manage_private_workspace_users.py reanchor-audit \
+  --actor-username admin@example.com \
+  --reason "documented reason for the investigated reset"
+```
+
+The existing HMAC event chain must still verify. The reset appends an `AUDIT_ANCHOR_RESET` event naming the operator and reason, then establishes the new authenticated head. For a real pilot, stop the web service before an exceptional re-anchor, preserve the pre-repair database/anchor state, and verify the chain immediately afterward.
 
 The anchor is outside SQLite but remains in the same host trust domain. It detects SQLite-only tail truncation and accidental/restricted DB tampering; it does **not** make the log immutable against an operator or attacker who can rewrite the database, anchor and audit key together.
 
@@ -258,6 +294,8 @@ The pilot selector continues to exclude:
 Only the authenticated tenant's selector/report paths are available.
 
 ## Error handling
+
+Audit-state failures are distinct from ordinary authentication/path failures. The HTTP boundary returns `503 Service Unavailable` for an `AuditStateError`; it does not convert an audit-anchor failure into a fake 401 or report-file 404.
 
 Authentication failures use a generic response rather than revealing whether:
 
