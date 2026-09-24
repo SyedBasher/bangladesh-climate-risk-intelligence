@@ -109,3 +109,24 @@ Recommended order:
 ## Public demo
 
 Public examples use synthetic assets and synthetic values only. Production screens are populated from private infrastructure and never require the public repository to contain the underlying asset database.
+
+## Decision report / portfolio workspace
+
+The decision workspace sits above the existing asset, compound/cross-asset and portfolio report modules.
+
+Recommended order:
+
+1. executive evidence summary with explicit source references;
+2. data readiness and coordinate/site-identity quality;
+3. direct physical evidence;
+4. second-order exposure;
+5. compound evidence;
+6. operational transmission and logistics dependencies;
+7. cross-asset and portfolio concentration with explicit denominators where applicable;
+8. evidence provenance;
+9. what data would change the answer;
+10. guardrails.
+
+Version 0.1 does not auto-write executive conclusions. A non-missing-data summary statement must carry source references so the presentation layer cannot invent support.
+
+See `docs/DECISION_REPORTS_PORTFOLIO_WORKSPACE.md`.

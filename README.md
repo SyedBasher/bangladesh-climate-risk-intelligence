@@ -90,6 +90,7 @@ See:
 - `src/clr/surface_water_local.py` — JRC Global Surface Water v1.5 occurrence, recurrence, and high-occurrence-water distance
 - `src/clr/worldcover_local.py` — ESA WorldCover 2021 v200 site class and surrounding land-cover composition
 - `src/clr/compound_local.py` — same-month heat–drought joins, flood/route evidence states, and cross-asset bottleneck metrics
+- `src/clr/decision_reports.py` — governed decision-facing assembly of asset, compound, logistics, and portfolio evidence
 - `src/clr/intelligence.py` — transparent second-/third-order exposure logic
 - `src/clr/portfolio.py` — bank/insurer portfolio accumulation and concentration
 - `src/clr/live_integration.py` — production source gates and provenance controls
