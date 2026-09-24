@@ -57,7 +57,8 @@ At least one `--indicator-run` is required.
 Every selected run must:
 
 - exist in `processing_run`;
-- have status `SUCCESS`.
+- have status `SUCCESS`;
+- contain indicator evidence for the requested tenant.
 
 The adapter rejects:
 
@@ -70,7 +71,7 @@ If two explicitly selected runs contain the same indicator for the same asset an
 
 Compound and logistics runs are also explicit.
 
-A compound run must have a tenant compatible with the requested tenant and must carry positive `year` and `return_period` parameters.
+A selected compound run must contain cross-asset evidence for the requested tenant. A selected logistics run must contain route-analysis evidence for the requested tenant. A compound run must also have a tenant parameter compatible with the requested tenant and must carry positive `year` and `return_period` parameters.
 
 ## Asset resolution
 
