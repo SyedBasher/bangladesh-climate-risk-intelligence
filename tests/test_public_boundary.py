@@ -52,3 +52,22 @@ def test_boundary_guard_does_not_flag_public_methodology_names():
         "examples/synthetic/decision_workspace_demo.html",
     ]
     assert boundary_violations(good) == []
+
+
+def test_dockerignore_excludes_private_workspace_and_recovery_artifacts():
+    dockerignore = (
+        Path(__file__).resolve().parents[1] / ".dockerignore"
+    ).read_text(encoding="utf-8")
+    required = [
+        "private_data",
+        "**/.private-data-root",
+        "**/audit_chain_secret.bin",
+        "**/audit_head_anchor.json",
+        "**/*.sqlite",
+        "**/*.parquet",
+        "**/*.clrbackup",
+        ".env",
+        "**/*.key",
+    ]
+    for item in required:
+        assert item in dockerignore
