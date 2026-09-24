@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Mapping
 
 WORKSPACE_DIRS = (
+    "auth",
     "catalog",
     "raw/era5_land",
     "raw/chirps",
