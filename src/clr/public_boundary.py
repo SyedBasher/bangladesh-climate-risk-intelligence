@@ -25,13 +25,14 @@ FORBIDDEN_SUFFIXES = (
     ".sqlite3", ".sqlite3-wal", ".sqlite3-shm",
     ".duckdb", ".parquet", ".feather",
     ".pbf", ".tif", ".tiff", ".nc", ".grib", ".grib2", ".gpkg",
-    ".shp", ".shx", ".dbf", ".vrt",
+    ".shp", ".shx", ".dbf", ".vrt", ".clrbackup",
 )
 
 FORBIDDEN_PATH_FRAGMENTS = (
     "/outputs/reports/",
     "/outputs/qa/",
     "/backups/catalog/",
+    "/backups/recovery/",
     "/manifests/source_vintages/",
     "/manifests/plans/",
     "/normalized/assets/",
@@ -55,6 +56,7 @@ FORBIDDEN_BASENAMES = {
     "workspace.json",
     "workspace_auth.json",
     "audit_chain_secret.bin",
+    "audit_head_anchor.json",
     "session_secret.bin",
 }
 
