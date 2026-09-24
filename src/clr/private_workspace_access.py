@@ -4,9 +4,11 @@ import base64
 import hashlib
 import hmac
 import json
+import os
 import re
 import secrets
 import sqlite3
+import threading
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -23,6 +25,9 @@ MAX_AUDIT_TEXT_CHARS = 256
 MAX_AUDIT_DETAIL_ITEMS = 20
 MAX_AUDIT_DETAIL_BYTES = 4096
 AUDIT_SECRET_FILE = "audit_chain_secret.bin"
+AUDIT_ANCHOR_FILE = "audit_head_anchor.json"
+AUDIT_ANCHOR_VERSION = 1
+_AUDIT_APPEND_LOCK = threading.RLock()
 _USERNAME_RE = re.compile(r"^[A-Za-z0-9._@+-]{3,128}$")
 ROLES = {"ADMIN", "ANALYST", "VIEWER"}
 PERMISSIONS = {
@@ -144,9 +149,12 @@ def apply_access_schema(root: str | Path, migration_path: str | Path) -> dict[st
             "SELECT value FROM workspace_security_meta WHERE key='access_schema_version'"
         ).fetchone()
         conn.commit()
+    ensure_audit_secret(root)
+    anchor = initialize_audit_anchor(root)
     return {
         "access_schema_version": row["value"] if row else None,
         "catalog": "catalog/climate_risk.sqlite",
+        "audit_anchor": anchor["path"],
     }
 
 
@@ -182,7 +190,109 @@ def ensure_audit_secret(root: str | Path) -> Path:
 
 
 def _audit_secret(root: str | Path) -> bytes:
-    return ensure_audit_secret(root).read_bytes()
+    path = _audit_secret_path(root)
+    if not path.exists():
+        raise FileNotFoundError("Audit-chain secret is missing")
+    data = path.read_bytes()
+    if len(data) < 32:
+        raise ValueError("Audit-chain secret is too short")
+    return data
+
+
+def _audit_anchor_path(root: str | Path) -> Path:
+    root = _private_root(root)
+    path = root / "auth" / AUDIT_ANCHOR_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _anchor_body(
+    *,
+    event_count: int,
+    head_hash: str | None,
+    updated_at: str,
+) -> dict[str, Any]:
+    return {
+        "version": AUDIT_ANCHOR_VERSION,
+        "event_count": int(event_count),
+        "head_hash": head_hash,
+        "updated_at": updated_at,
+    }
+
+
+def _anchor_mac(secret: bytes, body: dict[str, Any]) -> str:
+    payload = json.dumps(
+        body,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hmac.new(secret, payload, hashlib.sha256).hexdigest()
+
+
+def _write_audit_anchor(
+    root: str | Path,
+    *,
+    event_count: int,
+    head_hash: str | None,
+    updated_at: str | None = None,
+) -> dict[str, Any]:
+    root = _private_root(root)
+    secret = _audit_secret(root)
+    updated_at = updated_at or utc_now()
+    body = _anchor_body(
+        event_count=event_count,
+        head_hash=head_hash,
+        updated_at=updated_at,
+    )
+    payload = dict(body)
+    payload["anchor_mac"] = _anchor_mac(secret, body)
+    path = _audit_anchor_path(root)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    try:
+        tmp.chmod(0o600)
+    except OSError:
+        pass
+    os.replace(tmp, path)
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
+    return {
+        "path": path.relative_to(root).as_posix(),
+        "event_count": int(event_count),
+        "head_hash": head_hash,
+        "updated_at": updated_at,
+    }
+
+
+def _read_audit_anchor(root: str | Path) -> dict[str, Any]:
+    path = _audit_anchor_path(root)
+    if not path.exists():
+        return {"valid": False, "reason": "AUDIT_ANCHOR_MISSING"}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        body = _anchor_body(
+            event_count=int(payload["event_count"]),
+            head_hash=payload.get("head_hash"),
+            updated_at=str(payload["updated_at"]),
+        )
+        actual = str(payload["anchor_mac"])
+    except Exception:
+        return {"valid": False, "reason": "AUDIT_ANCHOR_INVALID"}
+    expected = _anchor_mac(_audit_secret(root), body)
+    if not hmac.compare_digest(actual, expected):
+        return {"valid": False, "reason": "AUDIT_ANCHOR_MAC_MISMATCH"}
+    return {
+        "valid": True,
+        "reason": None,
+        **body,
+        "path": path.relative_to(_private_root(root)).as_posix(),
+    }
 
 
 def _event_hash(secret: bytes, record: dict[str, Any]) -> str:
@@ -211,66 +321,107 @@ def record_audit_event(
         raise ValueError("Audit action must be non-empty")
     occurred_at = occurred_at or utc_now()
     clean_detail = _bounded_audit_detail(detail)
-    target_type = (
-        None if target_type is None
-        else str(target_type)[:64]
-    )
+    target_type = None if target_type is None else str(target_type)[:64]
     target_id = (
         None if target_id is None
         else str(target_id)[:MAX_AUDIT_TEXT_CHARS]
     )
-    tenant_key = (
-        None if tenant_key is None
-        else str(tenant_key)[:128]
-    )
+    tenant_key = None if tenant_key is None else str(tenant_key)[:128]
 
-    with connect_catalog(root) as conn:
-        # Serialize the read-head + append operation so concurrent web requests
-        # cannot create two events pointing at the same prior hash.
-        conn.execute("BEGIN IMMEDIATE")
-        prev = conn.execute(
-            "SELECT event_hash FROM workspace_audit_event ORDER BY audit_event_id DESC LIMIT 1"
-        ).fetchone()
-        prev_hash = prev["event_hash"] if prev else None
-        record = {
-            "occurred_at": occurred_at,
-            "actor_user_id": actor_user_id,
-            "tenant_key": tenant_key,
-            "action": action,
-            "target_type": target_type,
-            "target_id": target_id,
-            "outcome": outcome,
-            "detail": clean_detail,
-            "prev_hash": prev_hash,
-        }
-        event_hash = _event_hash(_audit_secret(root), record)
-        cur = conn.execute(
-            """
-            INSERT INTO workspace_audit_event(
-                occurred_at,actor_user_id,tenant_key,action,target_type,target_id,
-                outcome,detail_json,prev_hash,event_hash
-            ) VALUES(?,?,?,?,?,?,?,?,?,?)
-            """,
-            (
-                occurred_at,
-                actor_user_id,
-                tenant_key,
-                action,
-                target_type,
-                target_id,
-                outcome,
-                json.dumps(clean_detail, sort_keys=True, separators=(",", ":")),
-                prev_hash,
-                event_hash,
-            ),
+    with _AUDIT_APPEND_LOCK:
+        anchor = _read_audit_anchor(root)
+        if not anchor.get("valid"):
+            raise ValueError(
+                f"Audit anchor is not valid: {anchor.get('reason')}"
+            )
+        with connect_catalog(root) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            prev = conn.execute(
+                "SELECT event_hash FROM workspace_audit_event ORDER BY audit_event_id DESC LIMIT 1"
+            ).fetchone()
+            prev_hash = prev["event_hash"] if prev else None
+            current_count = int(
+                conn.execute(
+                    "SELECT count(*) AS n FROM workspace_audit_event"
+                ).fetchone()["n"]
+            )
+            if (
+                current_count != int(anchor["event_count"])
+                or prev_hash != anchor.get("head_hash")
+            ):
+                conn.rollback()
+                raise ValueError(
+                    "Audit database head no longer matches the external anchor"
+                )
+            record = {
+                "occurred_at": occurred_at,
+                "actor_user_id": actor_user_id,
+                "tenant_key": tenant_key,
+                "action": action,
+                "target_type": target_type,
+                "target_id": target_id,
+                "outcome": outcome,
+                "detail": clean_detail,
+                "prev_hash": prev_hash,
+            }
+            event_hash = _event_hash(_audit_secret(root), record)
+            cur = conn.execute(
+                """
+                INSERT INTO workspace_audit_event(
+                    occurred_at,actor_user_id,tenant_key,action,target_type,target_id,
+                    outcome,detail_json,prev_hash,event_hash
+                ) VALUES(?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    occurred_at,
+                    actor_user_id,
+                    tenant_key,
+                    action,
+                    target_type,
+                    target_id,
+                    outcome,
+                    json.dumps(
+                        clean_detail,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                    prev_hash,
+                    event_hash,
+                ),
+            )
+            conn.commit()
+            new_count = current_count + 1
+
+        anchored = _write_audit_anchor(
+            root,
+            event_count=new_count,
+            head_hash=event_hash,
+            updated_at=occurred_at,
         )
-        conn.commit()
-    return {"audit_event_id": cur.lastrowid, "event_hash": event_hash, "prev_hash": prev_hash}
+    return {
+        "audit_event_id": cur.lastrowid,
+        "event_hash": event_hash,
+        "prev_hash": prev_hash,
+        "anchor_event_count": anchored["event_count"],
+    }
 
 
-def verify_audit_chain(root: str | Path) -> dict[str, Any]:
+def verify_audit_chain(
+    root: str | Path,
+    *,
+    require_anchor: bool = True,
+) -> dict[str, Any]:
     root = _private_root(root)
-    secret = _audit_secret(root)
+    try:
+        secret = _audit_secret(root)
+    except FileNotFoundError:
+        return {
+            "valid": False,
+            "checked_events": 0,
+            "failed_event_id": None,
+            "reason": "AUDIT_SECRET_MISSING",
+            "head_hash": None,
+        }
     with connect_catalog(root) as conn:
         rows = conn.execute(
             "SELECT * FROM workspace_audit_event ORDER BY audit_event_id"
@@ -295,6 +446,7 @@ def verify_audit_chain(root: str | Path) -> dict[str, Any]:
                 "checked_events": int(row["audit_event_id"]) - 1,
                 "failed_event_id": row["audit_event_id"],
                 "reason": "PREVIOUS_HASH_MISMATCH",
+                "head_hash": expected_prev,
             }
         calculated = _event_hash(secret, record)
         if not hmac.compare_digest(calculated, row["event_hash"]):
@@ -303,15 +455,74 @@ def verify_audit_chain(root: str | Path) -> dict[str, Any]:
                 "checked_events": int(row["audit_event_id"]) - 1,
                 "failed_event_id": row["audit_event_id"],
                 "reason": "EVENT_HASH_MISMATCH",
+                "head_hash": expected_prev,
             }
         expected_prev = row["event_hash"]
-    return {
+
+    result = {
         "valid": True,
         "checked_events": len(rows),
         "failed_event_id": None,
         "reason": None,
         "head_hash": expected_prev,
     }
+    if not require_anchor:
+        return result
+
+    anchor = _read_audit_anchor(root)
+    if not anchor.get("valid"):
+        return {
+            **result,
+            "valid": False,
+            "reason": anchor.get("reason"),
+        }
+    if int(anchor["event_count"]) != len(rows):
+        return {
+            **result,
+            "valid": False,
+            "reason": "EVENT_COUNT_MISMATCH",
+            "anchor_event_count": int(anchor["event_count"]),
+        }
+    if anchor.get("head_hash") != expected_prev:
+        return {
+            **result,
+            "valid": False,
+            "reason": "HEAD_HASH_MISMATCH",
+            "anchor_head_hash": anchor.get("head_hash"),
+        }
+    result["anchor_event_count"] = int(anchor["event_count"])
+    result["anchor_path"] = anchor["path"]
+    return result
+
+
+def initialize_audit_anchor(root: str | Path) -> dict[str, Any]:
+    root = _private_root(root)
+    path = _audit_anchor_path(root)
+    if path.exists():
+        anchor = _read_audit_anchor(root)
+        if not anchor.get("valid"):
+            raise ValueError(
+                f"Existing audit anchor is invalid: {anchor.get('reason')}"
+            )
+        return {
+            "path": anchor["path"],
+            "event_count": int(anchor["event_count"]),
+            "head_hash": anchor.get("head_hash"),
+            "bootstrapped": False,
+        }
+
+    chain = verify_audit_chain(root, require_anchor=False)
+    if not chain["valid"]:
+        raise ValueError(
+            f"Cannot bootstrap audit anchor from invalid chain: {chain['reason']}"
+        )
+    anchored = _write_audit_anchor(
+        root,
+        event_count=int(chain["checked_events"]),
+        head_hash=chain.get("head_hash"),
+    )
+    anchored["bootstrapped"] = True
+    return anchored
 
 
 def create_user(
