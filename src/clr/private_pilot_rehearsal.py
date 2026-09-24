@@ -106,16 +106,12 @@ def _catalog_state_fingerprint(db_path: str | Path) -> dict[str, Any]:
                 "max_event_id": row["max_id"],
                 "head_hash": head["event_hash"] if head else None,
             }
-        schema_version = int(
-            conn.execute("PRAGMA schema_version").fetchone()[0]
-        )
         user_version = int(
             conn.execute("PRAGMA user_version").fetchone()[0]
         )
     body = {
         "table_row_counts": counts,
         "audit": audit,
-        "schema_version": schema_version,
         "user_version": user_version,
     }
     encoded = json.dumps(
@@ -764,11 +760,6 @@ def rehearse_backup_restore(
         "restore_checks": checks,
         "restored_sqlite": restored["sqlite"],
         "restored_audit": restored["audit"],
-        "restored_security_summary": (
-            _catalog_security_summary(restored_root)
-            if False
-            else {}
-        ),
         "guardrails": [
             "The live catalog was never overwritten.",
             "Catalog-only recovery is expected to fail audit verification without the matching audit key.",
