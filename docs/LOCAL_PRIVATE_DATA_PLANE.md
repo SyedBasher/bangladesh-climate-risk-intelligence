@@ -37,6 +37,9 @@ Default layout:
 
 ```
 private_data/
+├── auth/
+│   ├── workspace_auth.json
+│   └── session_secret.bin
 ├── catalog/
 │   └── climate_risk.sqlite
 ├── raw/
@@ -71,6 +74,8 @@ private_data/
 The entire workspace is gitignored.
 
 ## SQLite responsibilities
+
+Authentication secrets used by the local-only workspace remain under `private_data/auth/` and are never stored in SQLite or GitHub.
 
 SQLite stores compact relational/operational state:
 
