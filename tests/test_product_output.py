@@ -41,10 +41,11 @@ def test_portfolio_report_blocks_ungoverned_pd_loss_class():
 def test_portfolio_report_accepts_exposure_metric():
     report = portfolio_intelligence_report(
         "SYNTH_PORTFOLIO",
-        [{"metric_id":"ead_share_in_rp100_footprint","value":0.25,"unit":"share","classification":"BANK_CONCENTRATION"}],
+        [{"metric_id":"ead_share_in_rp100_footprint","value":0.25,"unit":"share","denominator_count":4,"classification":"BANK_CONCENTRATION"}],
         missing_data_questions=["Add exact collateral coordinates."],
     )
     assert report["portfolio_metrics"][0]["value"] == 0.25
+    assert report["portfolio_metrics"][0]["denominator_count"] == 4
     assert report["what_data_would_change_the_answer"] == ["Add exact collateral coordinates."]
 
 
@@ -81,6 +82,34 @@ def test_compound_report_rejects_null_metric_marked_ok():
                 {
                     "metric_id":"asset_share_with_heat_spi3_cooccurrence",
                     "value":None,"quality_flag":"OK",
+                }
+            ],[],{"inputs":[]}
+        )
+
+
+def test_portfolio_share_requires_explicit_integer_denominator():
+    with pytest.raises(ValueError, match="denominator_count"):
+        portfolio_intelligence_report(
+            "SYNTH_PORTFOLIO",
+            [{"metric_id":"ead_share","value":0.25,"unit":"share","classification":"BANK_CONCENTRATION"}],
+        )
+    with pytest.raises(ValueError, match="must be an integer"):
+        portfolio_intelligence_report(
+            "SYNTH_PORTFOLIO",
+            [{"metric_id":"ead_share","value":0.25,"unit":"share","denominator_count":2.5,"classification":"BANK_CONCENTRATION"}],
+        )
+
+
+def test_compound_nan_denominator_is_missing_not_int_conversion():
+    with pytest.raises(ValueError, match="explicit denominator"):
+        compound_intelligence_report(
+            "INTERNAL",2025,100,[],[
+                {
+                    "metric_id":"asset_share_with_heat_spi3_cooccurrence",
+                    "value":0.5,
+                    "unit":"share",
+                    "denominator":float("nan"),
+                    "quality_flag":"OK",
                 }
             ],[],{"inputs":[]}
         )
