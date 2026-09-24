@@ -335,3 +335,56 @@ def test_loopback_http_login_creates_authenticated_dashboard(tmp_path):
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_password_reset_revokes_existing_sessions(tmp_path):
+    root, _, _, _ = _workspace(tmp_path)
+    set_workspace_password(root, "synthetic-long-password", iterations=100_000)
+    token, _ = create_session_token(
+        root,
+        tenant_key="TENANT_A",
+        ttl_seconds=600,
+        now=1_000,
+    )
+    assert verify_session_token(root, token, now=1_100) is not None
+
+    set_workspace_password(root, "synthetic-new-password", iterations=100_000)
+    assert verify_session_token(root, token, now=1_100) is None
+
+
+def test_web_shell_rejects_noncanonical_tenant_keys(tmp_path):
+    root, _, _, _ = _workspace(tmp_path)
+    with connect_catalog(root) as conn:
+        row = conn.execute(
+            "SELECT * FROM asset_location WHERE tenant_key='TENANT_A'"
+        ).fetchone()
+        conn.execute(
+            """
+            INSERT INTO asset_location(
+                asset_location_id,tenant_key,external_system,external_id,asset_type,
+                latitude,longitude,coordinate_source,coordinate_precision_m,
+                site_identity_grade,coordinate_status,valid_from,valid_to,created_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                "UNSAFE_ASSET",
+                "TENANT/A",
+                "SYNTH",
+                "UNSAFE",
+                "FACTORY",
+                row["latitude"],
+                row["longitude"],
+                "SYNTHETIC",
+                None,
+                "EXACT_SITE",
+                "RESOLVED",
+                None,
+                None,
+                utc_now(),
+            ),
+        )
+        conn.commit()
+
+    assert not tenant_exists(root, "TENANT/A")
+    with pytest.raises(ValueError, match="tenant keys must use only"):
+        workspace_catalog(root, "TENANT/A")
