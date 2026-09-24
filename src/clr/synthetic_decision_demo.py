@@ -200,6 +200,7 @@ def synthetic_decision_workspace_report() -> dict:
                 "metric_id": "ead_share_in_rp100_footprint",
                 "value": 0.25,
                 "unit": "share",
+                "denominator_count": 4,
                 "classification": "BANK_CONCENTRATION",
                 "source_vintage": "SYNTH_VINTAGE",
                 "quality_flag": "OK",
