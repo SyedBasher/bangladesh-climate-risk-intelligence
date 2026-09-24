@@ -127,6 +127,7 @@ try:
     summary=cross_asset_summary(
         hd_annual,fr_state,shared_edges,
         year=args.year,return_period=args.return_period,
+        shared_edge_evidence_available=not route_edges.empty,
     )
 
     outputs=write_compound_parquets(
