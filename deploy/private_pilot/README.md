@@ -97,6 +97,9 @@ python scripts/manage_private_workspace_users.py grant --username analyst@exampl
 
 Passwords are entered through hidden terminal input.
 
+
+For an upgrade from a pre-anchor workspace with existing audit events, initialization deliberately refuses to create a silent anchor. Investigate the existing chain and use the explicit `reanchor-audit` procedure above.
+
 ## Roles
 
 - `VIEWER` — open existing tenant reports.
@@ -114,6 +117,20 @@ Verify the chain with:
 ```bash
 python scripts/manage_private_workspace_users.py verify-audit
 ```
+
+
+Normal web and CLI audit writers are serialized across processes. Access-management commands may therefore run while the pilot is active without racing the audit head.
+
+If verification reports a genuine anchor/database mismatch, **do not delete the anchor and rerun initialization**. Stop the pilot, preserve the current catalog and `auth/` files for investigation, verify the HMAC chain, then use the explicit ADMIN-attributed recovery command only after deciding to trust the current intact chain:
+
+```bash
+python scripts/manage_private_workspace_users.py reanchor-audit \
+  --actor-username admin@example.com \
+  --reason "investigated recovery reason"
+python scripts/manage_private_workspace_users.py verify-audit
+```
+
+The recovery command refuses to re-anchor a cryptographically invalid event chain and records `AUDIT_ANCHOR_RESET`.
 
 This makes unauthorized modification detectable. It is **not** a substitute for filesystem, database or infrastructure controls that make logs append-only or externally retained.
 
