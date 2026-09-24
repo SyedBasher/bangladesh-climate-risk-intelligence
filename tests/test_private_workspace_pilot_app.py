@@ -24,9 +24,11 @@ from clr.private_workspace_access import (
     verify_audit_chain,
 )
 from clr.private_workspace_pilot_app import (
+    DEFAULT_LOGIN_GLOBAL_ATTEMPTS,
     PILOT_SESSION_COOKIE,
     _LoginRateLimiter,
     _csrf_for_token,
+    _privacy_safe_log_message,
     make_pilot_handler,
     serve_private_pilot,
 )
@@ -617,6 +619,107 @@ def test_report_audit_state_failure_returns_503_not_404_or_disconnect(tmp_path):
         assert response.getheader("Retry-After") == "1"
         assert "temporarily unavailable" in page
         assert "Report file not available" not in page
+        conn.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_default_global_login_ceiling_is_conservative_until_host_calibration():
+    assert DEFAULT_LOGIN_GLOBAL_ATTEMPTS == 20
+
+
+def test_login_limiter_collapses_tenant_case_whitespace_and_invalid_variants():
+    key = _LoginRateLimiter.key(" UserA ", "TENANT_A")
+    assert _LoginRateLimiter.key("usera", " tenant_a ") == key
+    assert _LoginRateLimiter.key("USERA", "tenanT_A") == key
+
+    invalid = _LoginRateLimiter.key("usera", "TENANT/A")
+    assert _LoginRateLimiter.key("usera", "../TENANT_A") == invalid
+    assert invalid != key
+
+
+def test_tenant_spelling_variants_cannot_bypass_per_account_login_limit(tmp_path):
+    root, _, _, _ = _workspace(tmp_path)
+    server, thread = _server(
+        root,
+        login_attempts_per_key=3,
+        login_window_seconds=300,
+        login_global_attempts=20,
+        login_global_window_seconds=60,
+    )
+    host, port = server.server_address
+    try:
+        conn = http.client.HTTPConnection(host, port, timeout=5)
+        statuses = []
+        for tenant in (
+            "TENANT_A",
+            "TENANT_A ",
+            "tenanT_A",
+            " TENANT_A",
+        ):
+            response, _ = _post_login_raw(
+                conn,
+                "analyst",
+                tenant,
+                "synthetic-wrong-password",
+            )
+            statuses.append(response.status)
+        assert statuses == [401, 401, 401, 429]
+        conn.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_query_redaction_preserves_http_status_and_removes_sensitive_query():
+    message = _privacy_safe_log_message(
+        '"%s" %s %s',
+        (
+            "GET /report?path=TENANT_A/secret-report.html HTTP/1.1",
+            "503",
+            "-",
+        ),
+    )
+    assert message == '"GET /report HTTP/1.1" 503 -'
+    assert "TENANT_A" not in message
+    assert "secret-report" not in message
+
+
+def test_generate_rejects_more_than_maximum_indicator_runs(tmp_path):
+    root, asset, run_id, _ = _workspace(tmp_path)
+    server, thread = _server(root)
+    host, port = server.server_address
+    try:
+        conn = http.client.HTTPConnection(host, port, timeout=5)
+        cookie = _login(conn, "analyst", "synthetic-analyst-password")
+        cookie_pair, token = _cookie_token(cookie)
+        pairs = [
+            ("csrf", _csrf_for_token(token)),
+            ("scope", "ASSET"),
+            ("asset_location_id", asset["asset_location_id"]),
+        ]
+        pairs.extend(
+            ("indicator_run", f"synthetic-run-{index}")
+            for index in range(65)
+        )
+        body = urlencode(pairs)
+        conn.request(
+            "POST",
+            "/generate",
+            body=body,
+            headers={
+                "Cookie": cookie_pair,
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Content-Length": str(len(body.encode("utf-8"))),
+            },
+        )
+        response = conn.getresponse()
+        page = response.read().decode("utf-8")
+        assert response.status == 400
+        assert "Select no more than 64 indicator runs." in page
         conn.close()
     finally:
         server.shutdown()
