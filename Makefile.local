@@ -128,6 +128,9 @@ ffwc-event:
 private-pilot-rehearse:
 	python scripts/rehearse_private_pilot_deployment.py
 
+private-pilot-auth-benchmark:
+	python scripts/benchmark_private_pilot_auth.py $(if $(VCPUS),--vcpus "$(VCPUS)",) $(if $(TARGET_CPU_SHARE),--target-cpu-share "$(TARGET_CPU_SHARE)",) $(if $(SAMPLES),--samples "$(SAMPLES)",)
+
 private-pilot-init:
 	python scripts/init_private_pilot_access.py
 
