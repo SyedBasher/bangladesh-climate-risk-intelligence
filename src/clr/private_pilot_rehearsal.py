@@ -128,18 +128,14 @@ def _catalog_state_fingerprint(db_path: str | Path) -> dict[str, Any]:
 def create_catalog_backup(
     root: str | Path,
     *,
-    destination_dir: str | Path | None = None,
+    destination_dir: str | Path,
 ) -> dict[str, Any]:
     root = _private_root(root)
     source = catalog_path(root)
     if not source.exists():
         raise FileNotFoundError(source)
 
-    backup_dir = (
-        Path(destination_dir).resolve()
-        if destination_dir is not None
-        else root / "backups" / "catalog"
-    )
+    backup_dir = Path(destination_dir).resolve()
     backup_dir.mkdir(parents=True, exist_ok=True)
     stamp = _utc_stamp()
     target = backup_dir / f"climate_risk_{stamp}.sqlite"
