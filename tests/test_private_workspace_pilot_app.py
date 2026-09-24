@@ -485,7 +485,7 @@ def test_sqlite_busy_returns_503_instead_of_dropping_request(tmp_path, monkeypat
         page = response.read().decode("utf-8")
         assert response.status == 503
         assert response.getheader("Retry-After") == "1"
-        assert "temporarily busy" in page
+        assert "temporarily unavailable" in page
         conn.close()
     finally:
         server.shutdown()
