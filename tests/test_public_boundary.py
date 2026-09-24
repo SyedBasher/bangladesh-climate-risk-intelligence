@@ -19,6 +19,8 @@ def test_gitignore_explicitly_blocks_private_workspace():
     assert "**/.private-data-root" in text
     assert "**/audit_chain_secret.bin" in text
     assert "**/audit_head_anchor.json" in text
+    assert "**/audit_head_anchor.pending.json" in text
+    assert "**/audit_append.lock" in text
     assert "*.clrbackup" in text
 
 
@@ -31,6 +33,8 @@ def test_boundary_guard_catches_forced_private_files():
         "pilot/workspace.json",
         "pilot/auth/audit_chain_secret.bin",
         "pilot/auth/audit_head_anchor.json",
+        "pilot/auth/audit_head_anchor.pending.json",
+        "pilot/auth/audit_append.lock",
         "pilot/auth/workspace_auth.json",
         "pilot/backups/recovery/private_pilot_20260924.clrbackup",
         "pilot/manifests/source_vintages/SRC/2026-09-24/abc.json",
