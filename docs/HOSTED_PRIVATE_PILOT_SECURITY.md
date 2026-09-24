@@ -183,8 +183,6 @@ The anchor is outside SQLite but remains in the same host trust domain. It detec
 
 A production deployment should additionally retain audit evidence in a separately protected append-only or off-host destination.
 
-Security-relevant actions create `workspace_audit_event` rows.
-
 Each row records:
 
 - timestamp;
