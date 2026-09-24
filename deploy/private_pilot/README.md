@@ -150,17 +150,17 @@ python scripts/restore_private_pilot_backup.py \
 ```
 
 
-The SQLite catalog now contains both analytical lineage and access-control state. Catalog backups therefore contain sensitive authentication metadata.
+The encrypted recovery bundle contains sensitive authentication and audit-recovery material. Treat the bundle and its passphrase as separate protected secrets.
 
-A hosted pilot needs:
+A hosted pilot therefore needs:
 
-- encrypted backup storage;
-- restricted backup credentials;
+- an off-host destination with restricted backup credentials;
+- a recovery passphrase stored separately from the bundle;
 - a documented retention schedule;
-- periodic restore tests;
-- secure backup of the audit-chain key separate from GitHub.
+- periodic restore tests from the off-host copy;
+- separately protected append-only/off-host audit retention for stronger evidentiary assurance.
 
-A catalog restore without the corresponding audit-chain key prevents verification of the historical audit chain.
+A bare catalog copy is not an operational recovery backup because it cannot verify the historical audit chain without the matching audit key and anchor.
 
 ## Automated rehearsal before host exposure
 
@@ -170,7 +170,7 @@ Before configuring a real host, run:
 python scripts/rehearse_private_pilot_deployment.py
 ```
 
-The command performs a fail-closed preflight and non-destructive SQLite backup/restore rehearsal, including audit-chain verification.
+The command performs a fail-closed preflight, proves that a catalog-only restore cannot verify the audit history, then restores and verifies an authenticated encrypted recovery bundle without overwriting the live workspace.
 
 See:
 
