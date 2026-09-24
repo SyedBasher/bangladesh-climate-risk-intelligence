@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS asset_indicator_source (
     asset_indicator_id INTEGER NOT NULL REFERENCES asset_indicator(asset_indicator_id) ON DELETE CASCADE,
     source_artifact_id TEXT NOT NULL REFERENCES source_artifact(source_artifact_id),
     source_role TEXT NOT NULL CHECK(source_role IN (
-        'PRIMARY','DEPTH','PERMANENT_WATER_MASK','SPURIOUS_DEPTH_MASK','TILE_EXTENTS','TARGET_SERIES','BASELINE_SERIES','SOURCE_PACKAGE','DEM_RASTER','GFM_EVENT_SERIES','FFWC_STATION_METADATA','FFWC_WATER_LEVEL','IBTRACS_TRACK','WORLDPOP_POPULATION','GHSL_BUILT_TOTAL','GHSL_BUILT_NRES','JRC_GSW_OCCURRENCE','JRC_GSW_RECURRENCE','ESA_WORLDCOVER','AUXILIARY'
+        'PRIMARY','DEPTH','PERMANENT_WATER_MASK','SPURIOUS_DEPTH_MASK','TILE_EXTENTS','TARGET_SERIES','BASELINE_SERIES','SOURCE_PACKAGE','DEM_RASTER','GFM_EVENT_SERIES','FFWC_STATION_METADATA','FFWC_WATER_LEVEL','IBTRACS_TRACK','WORLDPOP_POPULATION','GHSL_BUILT_TOTAL','GHSL_BUILT_NRES','JRC_GSW_OCCURRENCE','JRC_GSW_RECURRENCE','ESA_WORLDCOVER','COMPOUND_HEAT','COMPOUND_DROUGHT','COMPOUND_SITE_FLOOD','COMPOUND_ROUTE_FLOOD','AUXILIARY'
     )),
     PRIMARY KEY (asset_indicator_id, source_artifact_id, source_role)
 );
@@ -196,6 +196,48 @@ CREATE TABLE IF NOT EXISTS logistics_route_analysis_source (
     PRIMARY KEY(route_analysis_id, source_artifact_id, source_role)
 );
 
+
+
+
+CREATE TABLE IF NOT EXISTS cross_asset_metric (
+    cross_asset_metric_id TEXT PRIMARY KEY,
+    tenant_key TEXT NOT NULL,
+    analysis_type TEXT NOT NULL CHECK(analysis_type IN (
+        'HEAT_DROUGHT','FLOOD_ROUTE','SHARED_BOTTLENECK','CROSS_ASSET_EXPOSURE'
+    )),
+    scope_key TEXT NOT NULL DEFAULT 'ALL_ASSETS',
+    metric_id TEXT NOT NULL,
+    value_numeric REAL,
+    value_text TEXT,
+    unit TEXT,
+    period_start TEXT,
+    period_end TEXT,
+    method_version TEXT NOT NULL,
+    quality_flag TEXT NOT NULL DEFAULT 'OK',
+    null_reason TEXT,
+    input_manifest_json TEXT NOT NULL DEFAULT '{}',
+    run_id TEXT REFERENCES processing_run(run_id),
+    created_at TEXT NOT NULL,
+    CHECK (
+        (value_numeric IS NOT NULL AND value_text IS NULL AND null_reason IS NULL)
+        OR (value_numeric IS NULL AND value_text IS NOT NULL AND null_reason IS NULL)
+        OR (value_numeric IS NULL AND value_text IS NULL AND null_reason IS NOT NULL)
+    )
+);
+
+CREATE INDEX IF NOT EXISTS cross_asset_metric_lookup_idx
+    ON cross_asset_metric(tenant_key,analysis_type,metric_id,period_end);
+
+CREATE TABLE IF NOT EXISTS cross_asset_metric_source (
+    cross_asset_metric_id TEXT NOT NULL
+        REFERENCES cross_asset_metric(cross_asset_metric_id) ON DELETE CASCADE,
+    source_artifact_id TEXT NOT NULL REFERENCES source_artifact(source_artifact_id),
+    source_role TEXT NOT NULL CHECK(source_role IN (
+        'HEAT_SOURCE','DROUGHT_SOURCE','SITE_FLOOD_SOURCE',
+        'ROUTE_NETWORK_SOURCE','ROUTE_FLOOD_SOURCE','AUXILIARY'
+    )),
+    PRIMARY KEY(cross_asset_metric_id,source_artifact_id,source_role)
+);
 
 CREATE TABLE IF NOT EXISTS hydro_station (
     station_id TEXT PRIMARY KEY,
