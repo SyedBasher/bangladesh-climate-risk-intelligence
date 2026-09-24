@@ -67,7 +67,7 @@ The password file contains only:
 - random salt;
 - password hash.
 
-The session signing secret is generated separately.
+The session signing secret is generated separately and is rotated whenever the workspace password changes, immediately invalidating previously issued sessions.
 
 Both files are inside the gitignored private workspace.
 
@@ -107,6 +107,8 @@ At sign-in the user supplies:
 
 - tenant key;
 - workspace password.
+
+For the local web shell, tenant keys must already use only letters, numbers, dot, underscore, equals, and hyphen. Unsafe tenant strings are rejected rather than sanitized, preventing two different tenant keys from mapping to the same report directory.
 
 A successful session is bound to that tenant.
 
