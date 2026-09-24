@@ -57,6 +57,8 @@ FORBIDDEN_BASENAMES = {
     "workspace_auth.json",
     "audit_chain_secret.bin",
     "audit_head_anchor.json",
+    "audit_head_anchor.pending.json",
+    "audit_append.lock",
     "session_secret.bin",
 }
 
