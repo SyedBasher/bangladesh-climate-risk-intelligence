@@ -60,7 +60,10 @@ def _safe_part(value: object) -> str:
 
 def canonical_tenant_key(value: object) -> str:
     """Validate a tenant key that is safe as both a DB scope and path segment."""
-    tenant = str(value).strip()
+    raw = str(value)
+    if raw != raw.strip():
+        raise ValueError("tenant_key cannot have leading or trailing whitespace")
+    tenant = raw
     if not TENANT_KEY_RE.fullmatch(tenant):
         raise ValueError(
             "tenant_key must be 1-128 characters using only letters, numbers, dot, underscore, equals, and hyphen"
@@ -106,7 +109,6 @@ def initialize_workspace(root: str | Path, schema_path: str | Path) -> dict:
     protective_block = (
         "# Managed by climate-risk private workspace initialization.\n"
         "*\n"
-        "!.gitignore\n"
     )
     existing_ignore = (
         workspace_gitignore.read_text(encoding="utf-8")
