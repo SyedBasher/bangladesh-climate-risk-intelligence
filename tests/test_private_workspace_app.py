@@ -1,5 +1,9 @@
+import http.client
 import json
+import threading
+from http.server import ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlencode
 
 import pytest
 
@@ -14,6 +18,7 @@ from clr.local_store import (
 )
 from clr.private_workspace_app import (
     _safe_output_file,
+    make_handler,
     render_dashboard,
     serve_private_workspace,
     tenant_exists,
@@ -269,3 +274,64 @@ def test_server_refuses_non_loopback_binding(tmp_path):
     root, _, _, _ = _workspace(tmp_path)
     with pytest.raises(ValueError, match="localhost-only"):
         serve_private_workspace(root, host="0.0.0.0", port=8765)
+
+
+def test_loopback_http_login_creates_authenticated_dashboard(tmp_path):
+    root, source, asset_a, _ = _workspace(tmp_path)
+    _indicator_run(root, source, asset_a, "TENANT_A")
+    password = "synthetic-long-password"
+    set_workspace_password(root, password, iterations=100_000)
+
+    server = ThreadingHTTPServer(
+        ("127.0.0.1", 0),
+        make_handler(root, session_ttl=600),
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address
+
+    try:
+        conn = http.client.HTTPConnection(host, port, timeout=5)
+        conn.request("GET", "/login")
+        response = conn.getresponse()
+        login_html = response.read().decode("utf-8")
+        assert response.status == 200
+        assert "Sign in" in login_html
+        assert response.getheader("Cache-Control") == "no-store"
+        assert "frame-ancestors 'none'" in response.getheader(
+            "Content-Security-Policy"
+        )
+
+        body = urlencode({"tenant": "TENANT_A", "password": password})
+        conn.request(
+            "POST",
+            "/login",
+            body=body,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Content-Length": str(len(body.encode("utf-8"))),
+            },
+        )
+        response = conn.getresponse()
+        response.read()
+        assert response.status == 303
+        cookie_header = response.getheader("Set-Cookie")
+        assert cookie_header is not None
+        assert "HttpOnly" in cookie_header
+        assert "SameSite=Strict" in cookie_header
+        cookie_value = cookie_header.split(";", 1)[0]
+
+        conn.request("GET", "/", headers={"Cookie": cookie_value})
+        response = conn.getresponse()
+        dashboard = response.read().decode("utf-8")
+        assert response.status == 200
+        assert "Decision workspace" in dashboard
+        assert "Tenant: TENANT_A" in dashboard
+        assert asset_a["asset_location_id"] in dashboard
+        assert "latitude" not in dashboard.lower()
+        assert "longitude" not in dashboard.lower()
+        conn.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
