@@ -37,6 +37,34 @@ WORKSPACE_DIRS = (
 
 SAFE_PART = re.compile(r"[^A-Za-z0-9._=-]+")
 TENANT_KEY_RE = re.compile(r"^[A-Za-z0-9._=-]{1,128}$")
+DEFAULT_SQLITE_BUSY_TIMEOUT_MS = 5_000
+
+
+class _ClosingConnection(sqlite3.Connection):
+    """SQLite connection whose context manager also closes the file handle."""
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        try:
+            return super().__exit__(exc_type, exc_value, traceback)
+        finally:
+            self.close()
+
+
+def _sqlite_connection(
+    db: str | Path,
+    *,
+    busy_timeout_ms: int = DEFAULT_SQLITE_BUSY_TIMEOUT_MS,
+) -> sqlite3.Connection:
+    timeout_ms = max(0, int(busy_timeout_ms))
+    conn = sqlite3.connect(
+        Path(db),
+        timeout=timeout_ms / 1000.0,
+        factory=_ClosingConnection,
+    )
+    conn.row_factory = sqlite3.Row
+    conn.execute(f"PRAGMA busy_timeout = {timeout_ms}")
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
 
 
 def utc_now() -> str:
@@ -135,7 +163,7 @@ def initialize_workspace(root: str | Path, schema_path: str | Path) -> dict:
 
     db = catalog_path(root)
     schema_sql = Path(schema_path).read_text(encoding="utf-8")
-    with sqlite3.connect(db) as conn:
+    with _sqlite_connection(db) as conn:
         conn.executescript(schema_sql)
         conn.executemany(
             "INSERT OR REPLACE INTO workspace_meta(key,value) VALUES(?,?)",
@@ -165,16 +193,17 @@ def initialize_workspace(root: str | Path, schema_path: str | Path) -> dict:
     }
 
 
-def connect_catalog(root: str | Path) -> sqlite3.Connection:
+def connect_catalog(
+    root: str | Path,
+    *,
+    busy_timeout_ms: int = DEFAULT_SQLITE_BUSY_TIMEOUT_MS,
+) -> sqlite3.Connection:
     db = catalog_path(root)
     if not db.exists():
         raise FileNotFoundError(
             f"Local catalog does not exist: {db}. Run scripts/init_private_workspace.py first."
         )
-    conn = sqlite3.connect(db)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    return _sqlite_connection(db, busy_timeout_ms=busy_timeout_ms)
 
 
 def source_snapshot_path(
