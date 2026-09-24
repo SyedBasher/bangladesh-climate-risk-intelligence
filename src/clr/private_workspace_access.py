@@ -836,12 +836,13 @@ def verify_audit_chain(
             rows = conn.execute(
                 "SELECT * FROM workspace_audit_event ORDER BY audit_event_id"
             ).fetchall()
+            anchor = _read_audit_anchor(root) if require_anchor else None
 
     result = _verify_audit_rows(rows, secret)
     if not result["valid"] or not require_anchor:
         return result
 
-    anchor = _read_audit_anchor(root)
+    assert anchor is not None
     if not anchor.get("valid"):
         return {
             **result,
