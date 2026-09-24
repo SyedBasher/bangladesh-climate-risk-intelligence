@@ -108,7 +108,7 @@ At sign-in the user supplies:
 - tenant key;
 - workspace password.
 
-For the local web shell, tenant keys must already use only letters, numbers, dot, underscore, equals, and hyphen. Unsafe tenant strings are rejected rather than sanitized, preventing two different tenant keys from mapping to the same report directory.
+For the local web shell, tenant keys must already use only letters, numbers, dot, underscore, equals, and hyphen. Leading/trailing whitespace and leading/trailing dots are rejected. Unsafe tenant strings are rejected rather than sanitized, preventing path-segment tenant IDs or alternate spellings from mapping outside the tenant report directory.
 
 A successful session is bound to that tenant.
 
@@ -142,7 +142,7 @@ Report-file access resolves paths only inside:
 private_data/outputs/reports/{authenticated-tenant}/
 ```
 
-Traversal to another tenant or another private-workspace directory is rejected.
+Traversal to another tenant or another private-workspace directory is rejected. The resolved tenant report directory must also be a strict child of `outputs/reports`, so path confinement does not depend only on string validation.
 
 ## Information minimisation
 
