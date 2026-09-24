@@ -91,10 +91,27 @@ See:
 - `src/clr/worldcover_local.py` — ESA WorldCover 2021 v200 site class and surrounding land-cover composition
 - `src/clr/compound_local.py` — same-month heat–drought joins, flood/route evidence states, and cross-asset bottleneck metrics
 - `src/clr/decision_reports.py` — governed decision-facing assembly of asset, compound, logistics, and portfolio evidence
+- `src/clr/decision_report_html.py` — standalone printable HTML rendering of governed decision-workspace objects
+- `src/clr/synthetic_decision_demo.py` — reproducible synthetic public workspace fixture
 - `src/clr/intelligence.py` — transparent second-/third-order exposure logic
 - `src/clr/portfolio.py` — bank/insurer portfolio accumulation and concentration
 - `src/clr/live_integration.py` — production source gates and provenance controls
 - `src/clr/local_store.py` — local SQLite/Parquet private-data layer
+
+## Synthetic decision-report demonstration
+
+A fully synthetic structured workspace and printable HTML example are available at:
+
+- `examples/synthetic/decision_workspace_demo.json`
+- `examples/synthetic/decision_workspace_demo.html`
+
+Regenerate them with:
+
+```bash
+python scripts/build_synthetic_decision_report.py
+```
+
+The HTML renderer is presentation-only: it does not calculate new hazards, scores, losses, or findings.
 
 ## Data boundary
 
