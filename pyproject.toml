@@ -16,7 +16,8 @@ dependencies = [
   "networkx>=3.4",
   "requests>=2.32",
   "pyarrow>=17",
-  "scipy>=1.14"
+  "scipy>=1.14",
+  "cryptography>=43"
 ]
 
 [tool.setuptools]

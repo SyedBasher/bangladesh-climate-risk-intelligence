@@ -108,7 +108,9 @@ Roles are intentionally small:
 
 The current pilot performs access management through the server-side CLI rather than an in-browser admin form.
 
-This avoids exposing account-management actions until recovery, MFA and stronger administrative safeguards are designed.
+During initial bootstrap, commands may run without an actor only until the first ADMIN membership exists. After that point, mutating CLI commands require `--actor-username` naming an active ADMIN, and that ADMIN user ID is written into the audit event.
+
+This avoids anonymous privileged changes after bootstrap while still allowing creation of the first administrator.
 
 ## SQLite request resilience
 
@@ -152,15 +154,34 @@ The browser cookie is:
 
 The backend still binds only to loopback. TLS is terminated by the reverse proxy.
 
-## CSRF
+## CSRF and login origin
 
-State-changing pilot forms use a CSRF value derived from the opaque session token.
+State-changing authenticated forms use a CSRF value derived from the opaque session token.
 
 The session token remains only in the HttpOnly cookie; the derived CSRF value is safe to place in the form.
 
-## Audit chain
+The pre-authentication `POST /login` path additionally checks the browser `Origin` header when present. Cross-origin browser login posts are rejected before password verification. Non-browser clients without an `Origin` header remain supported for controlled testing.
+
+## Audit chain and head anchor
 
 Security-relevant actions create `workspace_audit_event` rows.
+
+In addition to the HMAC-linked rows in SQLite, the pilot maintains:
+
+`private_data/auth/audit_head_anchor.json`
+
+The anchor records the expected audit event count and current head hash and is itself authenticated with the audit HMAC key.
+
+Verification therefore checks both:
+
+- the internal event-to-event hash chain;
+- the externally stored event count/head anchor.
+
+Deleting the newest SQLite audit rows now produces `EVENT_COUNT_MISMATCH` instead of a false valid result.
+
+The anchor is outside SQLite but remains in the same host trust domain. It detects SQLite-only tail truncation and accidental/restricted DB tampering; it does **not** make the log immutable against an operator or attacker who can rewrite the database, anchor and audit key together.
+
+A production deployment should additionally retain audit evidence in a separately protected append-only or off-host destination.
 
 Each row records:
 
@@ -181,7 +202,9 @@ The event hash is an HMAC over the canonical event body and prior hash, using:
 The verifier detects:
 
 - modified event contents;
-- broken links in the chain.
+- broken links in the chain;
+- tail truncation relative to the authenticated head anchor;
+- anchor modification without the audit HMAC key.
 
 Sensitive detail keys such as password, token and secret are stripped before storage.
 
@@ -247,6 +270,16 @@ Detailed secrets are not written to the audit event.
 ## Password-input boundary
 
 The pilot accepts passwords between 12 and 1,024 characters for account creation/reset. Login input uses the same upper bound. This prevents oversized credential submissions from becoming an unbounded hashing or audit-storage input.
+
+## Legacy shared-password shell
+
+`private_workspace_app.py` is retained only for local compatibility/testing.
+
+It is disabled by default at the server entry point and requires the explicit `--allow-legacy-shared-password` opt-in. It must **never** be co-hosted with, proxied beside, or substituted for the named-user private pilot.
+
+The hosted path is only:
+
+`scripts/run_private_pilot_app.py`
 
 ## Pilot limitations
 

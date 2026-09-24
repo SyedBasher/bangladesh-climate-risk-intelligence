@@ -491,3 +491,77 @@ def test_sqlite_busy_returns_503_instead_of_dropping_request(tmp_path, monkeypat
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_cross_origin_browser_login_is_rejected_before_authentication(tmp_path):
+    root, _, _, _ = _workspace(tmp_path)
+    server, thread = _server(root, secure_cookie=False)
+    host, port = server.server_address
+    try:
+        conn = http.client.HTTPConnection(host, port, timeout=5)
+        body = urlencode(
+            {
+                "username": "analyst",
+                "tenant": "TENANT_A",
+                "password": "synthetic-analyst-password",
+            }
+        )
+        conn.request(
+            "POST",
+            "/login",
+            body=body,
+            headers={
+                "Origin": "https://evil.example",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Content-Length": str(len(body.encode("utf-8"))),
+            },
+        )
+        response = conn.getresponse()
+        page = response.read().decode("utf-8")
+        assert response.status == 403
+        assert "origin was not accepted" in page
+        with connect_catalog(root) as db:
+            count = db.execute(
+                "SELECT count(*) AS n FROM workspace_audit_event WHERE action='LOGIN'"
+            ).fetchone()["n"]
+        assert count == 0
+        conn.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_same_origin_browser_login_is_accepted(tmp_path):
+    root, _, _, _ = _workspace(tmp_path)
+    server, thread = _server(root, secure_cookie=False)
+    host, port = server.server_address
+    try:
+        conn = http.client.HTTPConnection(host, port, timeout=5)
+        body = urlencode(
+            {
+                "username": "analyst",
+                "tenant": "TENANT_A",
+                "password": "synthetic-analyst-password",
+            }
+        )
+        conn.request(
+            "POST",
+            "/login",
+            body=body,
+            headers={
+                "Host": f"{host}:{port}",
+                "Origin": f"http://{host}:{port}",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Content-Length": str(len(body.encode("utf-8"))),
+            },
+        )
+        response = conn.getresponse()
+        response.read()
+        assert response.status == 303
+        assert response.getheader("Set-Cookie")
+        conn.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)

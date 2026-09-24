@@ -30,7 +30,8 @@ The preflight requires all of the following:
 - SQLite foreign-key check is clean;
 - private-pilot access schema is present;
 - audit-chain key exists;
-- current audit chain verifies;
+- audit-head anchor exists;
+- current audit chain **and** anchored event count/head verify;
 - no active session is orphaned, tied to a disabled user, missing a membership, or carrying a stale role;
 - checked-in Caddy and systemd deployment examples retain the expected loopback/TLS/service-hardening controls.
 
@@ -38,32 +39,37 @@ The preflight is intentionally fail-closed.
 
 ## What the restore rehearsal does
 
-If preflight passes, the command:
+If preflight passes, the command performs both a **negative** and a **positive** recovery control:
 
-1. creates a new SQLite backup using SQLite's backup API;
-2. verifies the backup with integrity and foreign-key checks;
-3. hashes the backup;
-4. creates an isolated temporary restore workspace inside the gitignored private `tmp/` directory;
-5. copies the backup into the temporary catalog path;
-6. copies the matching audit-chain key only for the purpose of verification;
-7. confirms the restored database hash matches the backup;
-8. reruns SQLite integrity checks;
-9. confirms the access schema survived restore;
-10. verifies the historical audit chain;
-11. checks restored access/session state for stale active sessions;
-12. removes the temporary restore workspace automatically.
+1. creates a transient SQLite snapshot using SQLite's backup API;
+2. verifies integrity, foreign keys, and a governed source-vs-backup logical-state fingerprint;
+3. restores that catalog **without** the audit key and confirms audit verification fails with `AUDIT_SECRET_MISSING`;
+4. creates an AES-256-GCM encrypted recovery bundle containing the catalog, audit key, and authenticated audit-head anchor;
+5. restores that encrypted bundle into a second isolated temporary workspace;
+6. verifies bundle authentication, catalog fingerprint, SQLite integrity, audit-key hash, audit-anchor hash, event count, audit head, and the complete audit chain;
+7. removes all temporary plaintext snapshots and restore workspaces automatically.
 
 The live catalog is never overwritten.
 
+The negative control matters: the rehearsal no longer makes a catalog-only restore look recoverable by copying the live audit key into it.
+
+
 ## Output
 
-A successful run creates:
+A successful rehearsal creates only:
 
-- a catalog backup under `private_data/backups/catalog/`;
-- its manifest with SHA-256 and integrity results;
-- a rehearsal QA manifest under `private_data/outputs/qa/`.
+- a private QA manifest under `private_data/outputs/qa/`.
 
-No rehearsal manifest or backup is committed to GitHub.
+The transient SQLite snapshot, encrypted rehearsal bundle, decrypted recovery target, and ephemeral rehearsal passphrase exist only inside the gitignored temporary rehearsal directory and are removed automatically.
+
+Operational backups are created separately with:
+
+```bash
+python scripts/backup_private_catalog.py --destination /secure/off-host/location
+```
+
+No rehearsal artifact or operational backup is committed to GitHub.
+
 
 ## PASS criteria
 
@@ -73,7 +79,9 @@ A failure in any of these areas blocks the rehearsal:
 
 - database integrity;
 - access schema;
-- audit-chain verification;
+- anchored audit-chain verification;
+- expected catalog-only recovery failure without the audit key;
+- encrypted recovery-bundle authentication and restore;
 - active-session consistency;
 - deployment example safety checks.
 
@@ -89,8 +97,8 @@ In particular it does not prove:
 - external log shipping;
 - operating-system patch state;
 - cloud IAM;
-- real backup encryption;
-- restore from off-host storage;
+- durability of an actual off-host backup provider;
+- restore from a real off-host failure scenario;
 - internet-side rate limiting;
 - MFA/SSO;
 - vulnerability posture of the deployed host.

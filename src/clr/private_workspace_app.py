@@ -686,16 +686,25 @@ def serve_private_workspace(
     host: str = "127.0.0.1",
     port: int = 8765,
     session_ttl: int = DEFAULT_SESSION_TTL,
+    allow_legacy_shared_password: bool = False,
 ) -> None:
     if not _is_loopback_host(host):
         raise ValueError(
             "Private Workspace 0.1 is localhost-only. "
             "Remote binding requires a separately hardened TLS deployment."
         )
+    if not allow_legacy_shared_password:
+        raise RuntimeError(
+            "Legacy shared-password workspace is disabled by default. "
+            "Use the named-user private pilot for hosted or multi-user access."
+        )
     private_root = _private_root(root)
     handler = make_handler(private_root, session_ttl=session_ttl)
     server = ThreadingHTTPServer((host, int(port)), handler)
-    print(f"Private workspace: http://{host}:{int(port)}/")
+    print(
+        "LEGACY LOCAL-ONLY shared-password workspace: "
+        f"http://{host}:{int(port)}/"
+    )
     try:
         server.serve_forever()
     finally:

@@ -26,6 +26,8 @@ Review at minimum:
 - `scripts/manage_private_workspace_users.py`
 - `scripts/run_private_pilot_app.py`
 - `scripts/rehearse_private_pilot_deployment.py`
+- `scripts/backup_private_catalog.py`
+- `scripts/restore_private_pilot_backup.py`
 - private workspace/access/pilot/rehearsal tests;
 - public-boundary enforcement.
 

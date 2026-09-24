@@ -411,3 +411,13 @@ def test_dot_segment_tenant_cannot_expand_report_boundary(tmp_path):
             _safe_output_file(root, bad, relative, suffixes=(".html",))
         with pytest.raises(ValueError):
             list_private_reports(root, bad)
+
+
+def test_legacy_shared_password_server_requires_explicit_local_opt_in(tmp_path):
+    root, _, _, _ = _workspace(tmp_path)
+    with pytest.raises(RuntimeError, match="disabled by default"):
+        serve_private_workspace(
+            root,
+            host="127.0.0.1",
+            port=0,
+        )

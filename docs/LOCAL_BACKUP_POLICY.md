@@ -6,28 +6,61 @@ Git is not the backup system for private data.
 
 The local private workspace needs its own backup process because all real data are intentionally excluded from GitHub.
 
-## SQLite catalog
+## Hosted-pilot recovery bundle
 
-Create a consistent catalog backup with:
+The operational private-pilot backup is **not** a bare SQLite file.
+
+Create an encrypted recovery bundle with:
 
 ```bash
 python scripts/backup_private_catalog.py
 ```
 
-The command uses SQLite's backup API and writes:
+The command prompts twice for a recovery passphrase and writes a `.clrbackup` file. It does not accept the passphrase as a command-line argument.
 
-```
-private_data/backups/catalog/climate_risk_<UTC_TIMESTAMP>.sqlite
-private_data/backups/catalog/climate_risk_<UTC_TIMESTAMP>.manifest.json
+The authenticated encrypted bundle contains:
+
+- a consistent SQLite catalog snapshot;
+- `auth/audit_chain_secret.bin`;
+- `auth/audit_head_anchor.json`;
+- a recovery manifest containing the governed catalog-state fingerprint and audit head/count.
+
+Encryption is AES-256-GCM. The encryption key is derived from the supplied passphrase using PBKDF2-HMAC-SHA256 with a per-bundle random salt.
+
+The passphrase is **not** stored in the bundle, repository, SQLite catalog, or manifest.
+
+For an off-host destination:
+
+```bash
+python scripts/backup_private_catalog.py --destination /secure/off-host/location
 ```
 
-The manifest includes SHA-256 and byte size.
+A raw SQLite snapshot still exists internally as a transient implementation step during backup/rehearsal, but the operational CLI does not leave that snapshot behind.
+
+Restore only into a new empty directory:
+
+```bash
+python scripts/restore_private_pilot_backup.py \
+  --bundle /secure/off-host/private_pilot_<timestamp>.clrbackup \
+  --target /secure/empty/recovery-test
+```
+
+The restore verifies:
+
+- AES-GCM authentication;
+- SQLite integrity and foreign keys;
+- catalog snapshot fingerprint;
+- audit-key hash;
+- audit-anchor hash;
+- audit event count and head;
+- complete audit-chain verification against the restored anchor.
 
 Recommended cadence:
 - before/after schema migrations;
 - before a major source refresh;
 - after a successful production ingestion batch;
 - at least daily while actively changing the private catalog.
+
 
 ## Raw snapshots
 
@@ -47,26 +80,23 @@ Do not manually edit production Parquet files.
 
 ## Hosted-pilot access and audit state
 
-When `migrations/001_private_workspace_access.sql` is enabled, the SQLite catalog also contains:
+The SQLite catalog contains named-user password hashes/salts, tenant roles, session hashes/revocation state, and the audit-event chain.
 
-- named-user password hashes and salts;
-- tenant memberships and roles;
-- opaque session hashes and revocation state;
-- the tamper-evident audit-event chain.
+Two files outside SQLite are required to recover the evidentiary audit state:
 
-The corresponding HMAC key is stored separately at:
+- `auth/audit_chain_secret.bin`;
+- `auth/audit_head_anchor.json`.
 
-`private_data/auth/audit_chain_secret.bin`
+The operational encrypted recovery bundle includes both.
 
-A catalog backup without the matching audit-chain key can restore access records but cannot verify the historical audit chain.
+A catalog-only restore is intentionally treated as incomplete: audit verification must fail without the matching audit key. The automated rehearsal tests that negative control before testing a successful encrypted-bundle restore.
 
-For any hosted pilot:
+The audit-head anchor detects SQLite-only tail truncation by comparing the current database event count and head hash with a separately HMAC-protected file. It improves tamper evidence but is not immutable logging. An operator with write access to both the database and the audit key/anchor remains inside the same trust domain.
 
-- encrypt catalog backups;
-- protect backup credentials separately from application credentials;
-- securely back up the audit-chain key outside GitHub;
-- test restoring the catalog and verifying the audit chain;
-- do not copy active session tokens because plaintext session tokens are never stored server-side.
+For a production service, additionally retain audit records or head anchors in a separately protected append-only/off-host destination.
+
+Do not back up plaintext session tokens because the server never stores them.
+
 
 ## Second copy
 

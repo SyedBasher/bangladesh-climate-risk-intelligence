@@ -24,6 +24,9 @@ gitignored private workspace
 
 Do not expose port `8766` through the host firewall, load balancer, container ingress or cloud security group.
 
+
+Do **not** run or proxy `scripts/run_private_workspace_app.py` on the host. That module is the deprecated shared-password local compatibility shell and is deliberately not part of the hosted topology.
+
 ## Files
 
 - `Caddyfile.example` — TLS reverse-proxy example.
@@ -86,8 +89,10 @@ After the private analytical workspace exists:
 
 ```bash
 python scripts/init_private_pilot_access.py
-python scripts/manage_private_workspace_users.py create-user --username analyst@example.com
-python scripts/manage_private_workspace_users.py grant --username analyst@example.com --tenant TENANT_A --role ANALYST
+python scripts/manage_private_workspace_users.py create-user --username admin@example.com
+python scripts/manage_private_workspace_users.py grant --username admin@example.com --tenant TENANT_A --role ADMIN
+python scripts/manage_private_workspace_users.py create-user --username analyst@example.com --actor-username admin@example.com
+python scripts/manage_private_workspace_users.py grant --username analyst@example.com --tenant TENANT_A --role ANALYST --actor-username admin@example.com
 ```
 
 Passwords are entered through hidden terminal input.
@@ -128,17 +133,34 @@ For a production deployment, the audit-chain key and other service secrets shoul
 
 ## Backup and recovery
 
-The SQLite catalog now contains both analytical lineage and access-control state. Catalog backups therefore contain sensitive authentication metadata.
+Operational private-pilot backups must use the encrypted recovery-bundle command:
 
-A hosted pilot needs:
+```bash
+python scripts/backup_private_catalog.py --destination /secure/off-host/location
+```
 
-- encrypted backup storage;
-- restricted backup credentials;
+The bundle contains the catalog, audit key and audit-head anchor. A catalog-only copy is insufficient for audit recovery.
+
+Restore drills must use a fresh empty target:
+
+```bash
+python scripts/restore_private_pilot_backup.py \
+  --bundle /secure/off-host/private_pilot_<timestamp>.clrbackup \
+  --target /secure/empty/recovery-test
+```
+
+
+The encrypted recovery bundle contains sensitive authentication and audit-recovery material. Treat the bundle and its passphrase as separate protected secrets.
+
+A hosted pilot therefore needs:
+
+- an off-host destination with restricted backup credentials;
+- a recovery passphrase stored separately from the bundle;
 - a documented retention schedule;
-- periodic restore tests;
-- secure backup of the audit-chain key separate from GitHub.
+- periodic restore tests from the off-host copy;
+- separately protected append-only/off-host audit retention for stronger evidentiary assurance.
 
-A catalog restore without the corresponding audit-chain key prevents verification of the historical audit chain.
+A bare catalog copy is not an operational recovery backup because it cannot verify the historical audit chain without the matching audit key and anchor.
 
 ## Automated rehearsal before host exposure
 
@@ -148,7 +170,7 @@ Before configuring a real host, run:
 python scripts/rehearse_private_pilot_deployment.py
 ```
 
-The command performs a fail-closed preflight and non-destructive SQLite backup/restore rehearsal, including audit-chain verification.
+The command performs a fail-closed preflight, proves that a catalog-only restore cannot verify the audit history, then restores and verifies an authenticated encrypted recovery bundle without overwriting the live workspace.
 
 See:
 
