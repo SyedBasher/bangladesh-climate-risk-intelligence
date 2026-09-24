@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Compound Intelligence Report",
+  "type": "object",
+  "required": [
+    "report_type",
+    "schema_version",
+    "tenant_scope",
+    "year",
+    "return_period",
+    "asset_compound_evidence",
+    "cross_asset_metrics",
+    "shared_bottlenecks",
+    "input_manifest",
+    "guardrails"
+  ],
+  "properties": {
+    "report_type": {"const": "COMPOUND_CROSS_ASSET_INTELLIGENCE"},
+    "schema_version": {"type": "string"},
+    "tenant_scope": {"type": "string", "minLength": 1},
+    "year": {"type": "integer"},
+    "return_period": {"type": "integer", "minimum": 1},
+    "asset_compound_evidence": {
+      "type": "array",
+      "items": {"type": "object"}
+    },
+    "cross_asset_metrics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["metric_id", "value", "quality_flag"],
+        "properties": {
+          "analysis_type": {"type": ["string", "null"]},
+          "metric_id": {"type": "string"},
+          "value": {"type": ["number", "null"]},
+          "unit": {"type": ["string", "null"]},
+          "denominator": {"type": ["integer", "null"], "minimum": 0},
+          "quality_flag": {"type": "string"},
+          "period_start": {"type": ["string", "null"]},
+          "period_end": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "shared_bottlenecks": {
+      "type": "array",
+      "items": {"type": "object"}
+    },
+    "input_manifest": {"type": "object"},
+    "guardrails": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  },
+  "additionalProperties": false
+}

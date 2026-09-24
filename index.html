@@ -122,6 +122,7 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
         <span class="badge"><span class="dot"></span> Cyclone context pipeline</span>
         <span class="badge"><span class="dot"></span> Exposure context pipeline</span>
         <span class="badge"><span class="dot"></span> Surface water &amp; land pipeline</span>
+        <span class="badge"><span class="dot"></span> Compound intelligence pipeline</span>
       </div>
     </div>
     <aside class="demo-note">
@@ -216,6 +217,18 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
         <div class="desc">Illustrative ESA WorldCover 2021 site class; surrounding class shares remain separate.</div>
         <div class="source">ESA WorldCover 2021 v200 · synthetic value</div>
       </article>
+      <article class="metric heat">
+        <div class="kicker">Compound evidence</div>
+        <div class="value">2 months</div>
+        <div class="desc">Illustrative months with at least one day above 35°C and SPI-3 at or below −1 in the same month.</div>
+        <div class="source">ERA5-Land + CHIRPS · synthetic value</div>
+      </article>
+      <article class="metric flood">
+        <div class="kicker">Shared bottleneck</div>
+        <div class="value">3 assets</div>
+        <div class="desc">Illustrative distinct assets using one shared flood-exposed road edge; exposure does not imply road closure.</div>
+        <div class="source">OSM + JRC/CEMS · synthetic value</div>
+      </article>
     </div>
   </section>
 
@@ -240,6 +253,7 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
           <li>Historical cyclone-track proximity and storm-center intensity context</li>
           <li>Residential population and built/non-residential settlement context</li>
           <li>Long-run surface-water history and surrounding land-cover context</li>
+          <li>Same-month compound conditions and shared cross-asset bottlenecks</li>
           <li>DSM elevation and local surface context</li>
         </ul>
       </article>
@@ -283,14 +297,14 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
     <div class="next-card">
       <div>
         <div class="next-label">Next build</div>
-        <h3>Compound Hazard &amp; Cross-Asset Intelligence</h3>
-        <p>Use the existing hazard, logistics, exposure and event layers to identify transparent co-occurrence, shared bottlenecks and portfolio concentrations without collapsing them into a composite risk score.</p>
+        <h3>Decision Reports &amp; Portfolio Workspace</h3>
+        <p>Turn the governed asset, compound, logistics and portfolio evidence into decision-facing reports and drill-down views while keeping source lineage, denominators, uncertainty and missing-data priorities visible.</p>
       </div>
       <div class="next-box">
-        <div>Heat + drought co-occurrence</div>
-        <div>Flood + route exposure intersections</div>
-        <div>Shared hazard / logistics concentrations</div>
-        <div>No composite score or hidden weighting</div>
+        <div>Asset intelligence briefs</div>
+        <div>Cross-asset and portfolio drill-downs</div>
+        <div>Evidence and data-gap panels</div>
+        <div>Exportable governed reports</div>
       </div>
     </div>
   </section>
@@ -328,6 +342,7 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
           <tr><td>Exposure context</td><td>WorldPop + GHSL</td><td>Modeled residential population and surrounding built/non-residential surface, not workforce, property value or replacement cost</td></tr>
           <tr><td>Surface water</td><td>JRC Global Surface Water v1.5</td><td>Long-run open-water occurrence/recurrence and distance context, not flood probability or flood frequency</td></tr>
           <tr><td>Land cover</td><td>ESA WorldCover 2021 v200</td><td>10 m land-cover class and surrounding composition, not zoning, ownership or property value</td></tr>
+          <tr><td>Compound / cross-asset</td><td>Multi-source calculated evidence</td><td>Same-month co-occurrence, site-route states and shared dependency counts with explicit denominators; not a composite score or loss estimate</td></tr>
         </tbody>
       </table>
     </div>

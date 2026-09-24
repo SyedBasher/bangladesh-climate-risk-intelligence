@@ -90,3 +90,61 @@ def portfolio_intelligence_report(
             "No borrower-level risk score is created by default.",
         ],
     }
+
+
+
+def compound_intelligence_report(
+    tenant_scope: str,
+    year: int,
+    return_period: int,
+    asset_compound_evidence: list[dict[str, Any]],
+    cross_asset_metrics: list[dict[str, Any]],
+    shared_bottlenecks: list[dict[str, Any]],
+    input_manifest: dict[str, Any],
+) -> dict[str, Any]:
+    """Build a transparent compound/cross-asset payload with explicit denominators."""
+    if not str(tenant_scope).strip():
+        raise ValueError("tenant_scope must be non-empty")
+    if int(return_period) <= 0:
+        raise ValueError("return_period must be positive")
+
+    cleaned_metrics=[]
+    for metric in cross_asset_metrics:
+        if "metric_id" not in metric or "value" not in metric:
+            raise ValueError("Cross-asset metrics require metric_id and value")
+        value=metric.get("value")
+        quality=metric.get("quality_flag","OK")
+        if value is None and quality=="OK":
+            raise ValueError("Null cross-asset metric requires a non-OK quality_flag")
+        denominator=metric.get("denominator")
+        if denominator is not None and int(denominator)<0:
+            raise ValueError("denominator cannot be negative")
+        cleaned_metrics.append({
+            "analysis_type":metric.get("analysis_type"),
+            "metric_id":metric["metric_id"],
+            "value":value,
+            "unit":metric.get("unit"),
+            "denominator":None if denominator is None else int(denominator),
+            "quality_flag":quality,
+            "period_start":metric.get("period_start"),
+            "period_end":metric.get("period_end"),
+        })
+
+    return {
+        "report_type":"COMPOUND_CROSS_ASSET_INTELLIGENCE",
+        "schema_version":"0.1.0",
+        "tenant_scope":str(tenant_scope),
+        "year":int(year),
+        "return_period":int(return_period),
+        "asset_compound_evidence":asset_compound_evidence,
+        "cross_asset_metrics":cleaned_metrics,
+        "shared_bottlenecks":shared_bottlenecks,
+        "input_manifest":input_manifest,
+        "guardrails":[
+            "No composite climate-risk score or hidden weighting is calculated.",
+            "Heat–drought metrics describe same-month co-occurrence, not economic loss or causal interaction.",
+            "Flood-exposed routes are not assumed to be blocked or impassable.",
+            "Cross-asset shares use explicit valid-data denominators; incomplete assets are not treated as unexposed.",
+            "Metrics are scoped to one tenant and do not combine unrelated customer portfolios.",
+        ],
+    }

@@ -50,6 +50,42 @@ Recommended order:
    - route/port dependency
    - EAD/collateral/sum insured
 
+## Compound / cross-asset screen
+
+Recommended order:
+
+1. **Input completeness and scope**
+   - tenant scope
+   - target year
+   - return period
+   - matched input vintages/runs
+
+2. **Temporal co-occurrence**
+   - heat + SPI-3 monthly evidence
+   - heat + SPI-12 monthly evidence
+   - complete-month and complete-year status
+
+3. **Site + logistics evidence**
+   - site-only, route-only, both, neither
+   - incomplete route coverage shown separately
+   - route exposure never labelled as closure
+
+4. **Shared bottlenecks**
+   - flood-exposed physical edges used by multiple distinct assets
+   - distinct asset and route-dependency counts
+   - no economic-loss weighting unless separately governed
+
+5. **Cross-asset metrics**
+   - counts and shares
+   - denominator shown next to every share
+   - incomplete assets excluded from denominators, not treated as unexposed
+
+6. **Input manifest and guardrails**
+   - source/dataset hashes
+   - processing-run IDs
+   - method versions
+   - what the evidence does and does not establish
+
 ## Portfolio screen
 
 Recommended order:

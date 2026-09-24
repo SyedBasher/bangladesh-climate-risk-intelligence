@@ -139,7 +139,7 @@ create table if not exists clr_private.asset_indicator_source (
     asset_indicator_id bigint not null references clr_private.asset_indicator(asset_indicator_id) on delete cascade,
     source_artifact_id uuid not null references clr_private.source_artifact(source_artifact_id),
     source_role text not null check (source_role in (
-        'PRIMARY','DEPTH','PERMANENT_WATER_MASK','SPURIOUS_DEPTH_MASK','TILE_EXTENTS','TARGET_SERIES','BASELINE_SERIES','SOURCE_PACKAGE','DEM_RASTER','GFM_EVENT_SERIES','FFWC_STATION_METADATA','FFWC_WATER_LEVEL','IBTRACS_TRACK','WORLDPOP_POPULATION','GHSL_BUILT_TOTAL','GHSL_BUILT_NRES','JRC_GSW_OCCURRENCE','JRC_GSW_RECURRENCE','ESA_WORLDCOVER','AUXILIARY'
+        'PRIMARY','DEPTH','PERMANENT_WATER_MASK','SPURIOUS_DEPTH_MASK','TILE_EXTENTS','TARGET_SERIES','BASELINE_SERIES','SOURCE_PACKAGE','DEM_RASTER','GFM_EVENT_SERIES','FFWC_STATION_METADATA','FFWC_WATER_LEVEL','IBTRACS_TRACK','WORLDPOP_POPULATION','GHSL_BUILT_TOTAL','GHSL_BUILT_NRES','JRC_GSW_OCCURRENCE','JRC_GSW_RECURRENCE','ESA_WORLDCOVER','COMPOUND_HEAT','COMPOUND_DROUGHT','COMPOUND_SITE_FLOOD','COMPOUND_ROUTE_FLOOD','AUXILIARY'
     )),
     primary key (asset_indicator_id, source_artifact_id, source_role)
 );
@@ -183,6 +183,48 @@ create table if not exists clr_private.logistics_route_analysis_source (
     primary key(route_analysis_id, source_artifact_id, source_role)
 );
 
+
+
+
+create table if not exists clr_private.cross_asset_metric (
+    cross_asset_metric_id uuid primary key default gen_random_uuid(),
+    tenant_id uuid not null references clr_private.tenant(tenant_id),
+    analysis_type text not null check(analysis_type in (
+        'HEAT_DROUGHT','FLOOD_ROUTE','SHARED_BOTTLENECK','CROSS_ASSET_EXPOSURE'
+    )),
+    scope_key text not null default 'ALL_ASSETS',
+    metric_id text not null,
+    value_numeric double precision,
+    value_text text,
+    unit text,
+    period_start timestamptz,
+    period_end timestamptz,
+    method_version text not null,
+    quality_flag text not null default 'OK',
+    null_reason text,
+    input_manifest jsonb not null default '{}'::jsonb,
+    run_id uuid references clr_private.processing_run(run_id),
+    created_at timestamptz not null default now(),
+    check (
+      (value_numeric is not null and value_text is null and null_reason is null)
+      or (value_numeric is null and value_text is not null and null_reason is null)
+      or (value_numeric is null and value_text is null and null_reason is not null)
+    )
+);
+
+create index if not exists cross_asset_metric_lookup_idx
+    on clr_private.cross_asset_metric(tenant_id,analysis_type,metric_id,period_end);
+
+create table if not exists clr_private.cross_asset_metric_source (
+    cross_asset_metric_id uuid not null
+        references clr_private.cross_asset_metric(cross_asset_metric_id) on delete cascade,
+    source_artifact_id uuid not null references clr_private.source_artifact(source_artifact_id),
+    source_role text not null check(source_role in (
+        'HEAT_SOURCE','DROUGHT_SOURCE','SITE_FLOOD_SOURCE',
+        'ROUTE_NETWORK_SOURCE','ROUTE_FLOOD_SOURCE','AUXILIARY'
+    )),
+    primary key(cross_asset_metric_id,source_artifact_id,source_role)
+);
 
 create table if not exists clr_private.hydro_station (
     station_id text primary key,
@@ -235,6 +277,8 @@ alter table clr_private.logistics_route_analysis_source enable row level securit
 alter table clr_private.hydro_station enable row level security;
 alter table clr_private.hydro_observation enable row level security;
 alter table clr_private.asset_hydro_station_link enable row level security;
+alter table clr_private.cross_asset_metric enable row level security;
+alter table clr_private.cross_asset_metric_source enable row level security;
 
 revoke all on all tables in schema clr_private from public, anon, authenticated;
 grant all on all tables in schema clr_private to service_role;
