@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import html
 import ipaddress
-import re
 import json
 from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -10,7 +9,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, quote, urlparse
 
-from .local_store import connect_catalog
+from .local_store import canonical_tenant_key, connect_catalog, tenant_report_dir
 from .private_decision_workspace import build_and_write_private_decision_workspace
 from .private_workspace_auth import (
     DEFAULT_SESSION_TTL,
@@ -22,25 +21,10 @@ from .private_workspace_auth import (
 
 SESSION_COOKIE = "clr_workspace_session"
 MAX_FORM_BYTES = 64 * 1024
-_SAFE_PART = re.compile(r"[^A-Za-z0-9._=-]+")
-
-
-def _safe_part(value: Any) -> str:
-    text = str(value).strip()
-    if not text:
-        raise ValueError("Empty path component")
-    return _SAFE_PART.sub("_", text)
 
 
 def _require_safe_tenant_key(value: Any) -> str:
-    tenant = str(value).strip()
-    if not tenant:
-        raise ValueError("tenant_key must be non-empty")
-    if _safe_part(tenant) != tenant:
-        raise ValueError(
-            "Private web workspace tenant keys must use only A-Z, a-z, 0-9, dot, underscore, equals, and hyphen"
-        )
-    return tenant
+    return canonical_tenant_key(value)
 
 
 def _private_root(root: str | Path) -> Path:
@@ -191,7 +175,7 @@ def workspace_catalog(root: str | Path, tenant_key: str) -> dict[str, Any]:
 def list_private_reports(root: str | Path, tenant_key: str) -> list[dict[str, Any]]:
     root = _private_root(root)
     tenant = _require_safe_tenant_key(tenant_key)
-    base = root / "outputs" / "reports" / tenant
+    base = tenant_report_dir(root, tenant)
     if not base.exists():
         return []
     out = []
@@ -241,7 +225,7 @@ def _safe_output_file(
 ) -> Path:
     root = _private_root(root)
     tenant = _require_safe_tenant_key(tenant_key)
-    base = (root / "outputs" / "reports" / tenant).resolve()
+    base = tenant_report_dir(root, tenant)
     target = (root / relative_path).resolve()
     try:
         target.relative_to(base)
