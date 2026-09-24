@@ -12,7 +12,6 @@ build/
 cache/
 artifacts/
 backups/
-
 # Geospatial / database binaries
 *.db
 *.db-wal
@@ -38,7 +37,6 @@ backups/
 *.vrt
 *.zip
 *.clrbackup
-
 # Secrets and credentials
 .env
 .env.*
@@ -48,7 +46,6 @@ backups/
 credentials*
 secrets*
 .cdsapirc
-
 # Python/tooling
 __pycache__/
 *.py[cod]
@@ -57,13 +54,21 @@ __pycache__/
 venv/
 .coverage
 htmlcov/
-
 # OS/editor
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
-
+# Private workspace layout at any custom root.
+**/auth/
+**/catalog/
+**/raw/
+**/normalized/
+**/indicators/
+**/manifests/
+**/outputs/
+**/backups/
+**/tmp/
 # Private workspace artifacts even under a custom in-repository root.
 # Initialized workspaces also create their own root .gitignore.
 **/.private-data-root
