@@ -59,6 +59,8 @@ See:
 - `docs/LOCAL_BACKUP_POLICY.md`
 - `docs/PRIVATE_DECISION_WORKSPACE.md`
 - `docs/PRIVATE_WORKSPACE_APP.md`
+- `docs/HOSTED_PRIVATE_PILOT_SECURITY.md`
+- `deploy/private_pilot/README.md`
 
 ## Core design principles
 
@@ -97,6 +99,8 @@ See:
 - `src/clr/private_decision_workspace.py` — explicit-run adapter from the private SQLite/Parquet data plane to JSON/HTML decision reports
 - `src/clr/private_workspace_auth.py` — local password hashing and signed tenant-bound sessions
 - `src/clr/private_workspace_app.py` — localhost-only authenticated Decision Workspace shell
+- `src/clr/private_workspace_access.py` — named users, tenant roles, revocable opaque sessions, and tamper-evident audit chain
+- `src/clr/private_workspace_pilot_app.py` — loopback-only named-user backend intended to sit behind a TLS reverse proxy
 - `src/clr/synthetic_decision_demo.py` — reproducible synthetic public workspace fixture
 - `src/clr/intelligence.py` — transparent second-/third-order exposure logic
 - `src/clr/portfolio.py` — bank/insurer portfolio accumulation and concentration
@@ -124,7 +128,7 @@ See `docs/PUBLIC_DATA_BOUNDARY.md`.
 
 ## Status
 
-The public repository contains the software/methodology baseline. Real data and production intelligence remain private.
+The public repository contains the software/methodology baseline plus a hosted-private-pilot security foundation. Real data, credentials, access-control records, audit secrets, generated client reports, and production intelligence remain private.
 
 ## License
 
