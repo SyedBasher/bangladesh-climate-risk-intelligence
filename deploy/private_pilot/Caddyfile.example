@@ -1,0 +1,26 @@
+{
+    # Keep the reverse proxy's admin API on localhost only.
+    admin 127.0.0.1:2019
+}
+
+{$PILOT_HOST} {
+    encode zstd gzip
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        -Server
+    }
+
+    reverse_proxy 127.0.0.1:8766 {
+        header_up X-Forwarded-Proto https
+        header_up X-Forwarded-Host {host}
+    }
+
+    log {
+        output file {$PILOT_ACCESS_LOG}
+        format json
+    }
+}

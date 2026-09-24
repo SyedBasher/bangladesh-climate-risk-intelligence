@@ -45,6 +45,29 @@ Derived Parquet should be reproducible from:
 
 Do not manually edit production Parquet files.
 
+## Hosted-pilot access and audit state
+
+When `migrations/001_private_workspace_access.sql` is enabled, the SQLite catalog also contains:
+
+- named-user password hashes and salts;
+- tenant memberships and roles;
+- opaque session hashes and revocation state;
+- the tamper-evident audit-event chain.
+
+The corresponding HMAC key is stored separately at:
+
+`private_data/auth/audit_chain_secret.bin`
+
+A catalog backup without the matching audit-chain key can restore access records but cannot verify the historical audit chain.
+
+For any hosted pilot:
+
+- encrypt catalog backups;
+- protect backup credentials separately from application credentials;
+- securely back up the audit-chain key outside GitHub;
+- test restoring the catalog and verifying the audit chain;
+- do not copy active session tokens because plaintext session tokens are never stored server-side.
+
 ## Second copy
 
 Maintain at least one additional encrypted copy of the private workspace outside the primary working disk.
