@@ -1,0 +1,30 @@
+[Unit]
+Description=Bangladesh Climate Intelligence Private Pilot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=clrpilot
+Group=clrpilot
+WorkingDirectory=/opt/bangladesh-climate-risk-intelligence
+Environment=CLR_PRIVATE_DATA=/srv/clr/private_data
+ExecStart=/opt/bangladesh-climate-risk-intelligence/.venv/bin/python scripts/run_private_pilot_app.py --host 127.0.0.1 --port 8766 --session-minutes 60
+Restart=on-failure
+RestartSec=5
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ReadWritePaths=/srv/clr/private_data
+
+[Install]
+WantedBy=multi-user.target
