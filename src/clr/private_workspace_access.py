@@ -926,6 +926,25 @@ def reanchor_audit(
     with _audit_write_guard(root):
         with connect_catalog(root) as conn:
             conn.execute("BEGIN IMMEDIATE")
+            admin = conn.execute(
+                """
+                SELECT 1
+                FROM workspace_user u
+                JOIN workspace_tenant_membership m
+                  ON m.user_id=u.user_id
+                WHERE u.user_id=?
+                  AND u.is_active=1
+                  AND m.role='ADMIN'
+                LIMIT 1
+                """,
+                (actor_user_id,),
+            ).fetchone()
+            if admin is None:
+                conn.rollback()
+                raise PermissionError(
+                    "Audit re-anchor requires an active ADMIN actor"
+                )
+
             rows = conn.execute(
                 "SELECT * FROM workspace_audit_event ORDER BY audit_event_id"
             ).fetchall()
@@ -938,6 +957,13 @@ def reanchor_audit(
                 )
 
             old_anchor = _read_audit_anchor(root)
+            current_state = _db_audit_state(conn)
+            if _state_matches_anchor(current_state, old_anchor):
+                conn.rollback()
+                raise ValueError(
+                    "Audit anchor already matches the database; "
+                    "re-anchor is not required"
+                )
             event = _normalize_audit_event(
                 actor_user_id=actor_user_id,
                 tenant_key=None,
