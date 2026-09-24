@@ -129,11 +129,15 @@ def heat_drought_monthly(
             "period":period,
             "heat_day_count":int(valid_days),
             "expected_day_count":int(expected),
-            "days_tmax_gt_35c":int(
-                g.loc[temp.gt(35.0),"date"].dt.date.nunique()
+            "days_tmax_gt_35c":(
+                None
+                if valid_days == 0
+                else int(g.loc[temp.gt(35.0),"date"].dt.date.nunique())
             ),
-            "days_tmax_gt_38c":int(
-                g.loc[temp.gt(38.0),"date"].dt.date.nunique()
+            "days_tmax_gt_38c":(
+                None
+                if valid_days == 0
+                else int(g.loc[temp.gt(38.0),"date"].dt.date.nunique())
             ),
             "monthly_max_tmax_c":(
                 None if monthly_max is None or pd.isna(monthly_max)
@@ -414,8 +418,8 @@ def cross_asset_summary(
     shared_edges:pd.DataFrame,
     *,
     year:int,
+    shared_edge_evidence_available:bool,
     return_period:int=100,
-    shared_edge_evidence_available:bool=True,
 )->pd.DataFrame:
     rows=[]
     if not heat_annual.empty:
