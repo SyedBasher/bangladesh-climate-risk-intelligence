@@ -123,9 +123,11 @@ This keeps the distinction between source evidence, calculations, compound evide
 
 ## Explicit denominators
 
-Any compound cross-asset metric with `unit = "share"` must carry a denominator.
+Any compound cross-asset metric with `unit = "share"` must carry a non-negative integer denominator.
 
-An incomplete asset is excluded from the governed denominator rather than counted as unexposed.
+Any portfolio metric with `unit = "share"` must carry a non-negative integer `denominator_count`. The printable renderer shows that denominator explicitly.
+
+An incomplete asset or exposure row is excluded from the governed denominator rather than counted as unexposed.
 
 ## Financial outputs
 
@@ -173,7 +175,7 @@ The renderer:
 - accepts only a `DECISION_PORTFOLIO_WORKSPACE` object;
 - escapes supplied text before rendering;
 - keeps null reasons and quality states visible;
-- shows denominators next to cross-asset shares;
+- shows denominators next to both cross-asset and portfolio shares;
 - separates direct, second-order, compound, operational, logistics and portfolio evidence;
 - provides print CSS and a browser `Print / Save as PDF` control;
 - calculates no new hazard values, rankings, scores, losses or narrative findings.
