@@ -17,6 +17,11 @@ from .local_store import canonical_tenant_key, connect_catalog, utc_now
 ACCESS_SCHEMA_VERSION = "0.1.0"
 DEFAULT_ITERATIONS = 310_000
 DEFAULT_SESSION_MINUTES = 60
+SESSION_TOUCH_INTERVAL_MINUTES = 5
+MAX_PASSWORD_CHARS = 1024
+MAX_AUDIT_TEXT_CHARS = 256
+MAX_AUDIT_DETAIL_ITEMS = 20
+MAX_AUDIT_DETAIL_BYTES = 4096
 AUDIT_SECRET_FILE = "audit_chain_secret.bin"
 _USERNAME_RE = re.compile(r"^[A-Za-z0-9._@+-]{3,128}$")
 ROLES = {"ADMIN", "ANALYST", "VIEWER"}
@@ -49,6 +54,65 @@ def _password_digest(password: str, salt: bytes, iterations: int) -> bytes:
         salt,
         int(iterations),
     )
+
+
+_DUMMY_AUTH_SALT = hashlib.sha256(
+    b"clr-private-pilot-dummy-auth"
+).digest()[:16]
+_DUMMY_AUTH_EXPECTED = b"\x00" * 32
+
+
+def _dummy_password_work(password: str, iterations: int) -> None:
+    actual = _password_digest(
+        str(password)[:MAX_PASSWORD_CHARS],
+        _DUMMY_AUTH_SALT,
+        max(1, int(iterations)),
+    )
+    hmac.compare_digest(actual, _DUMMY_AUTH_EXPECTED)
+
+
+def _sanitize_audit_value(value: Any, *, depth: int = 0) -> Any:
+    if depth >= 3:
+        return "[truncated]"
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        return value[:MAX_AUDIT_TEXT_CHARS]
+    if isinstance(value, dict):
+        out: dict[str, Any] = {}
+        for key, child in list(value.items())[:MAX_AUDIT_DETAIL_ITEMS]:
+            key_text = str(key)[:64]
+            if key_text.lower() in {
+                "password", "token", "session_token", "secret",
+            }:
+                continue
+            out[key_text] = _sanitize_audit_value(child, depth=depth + 1)
+        return out
+    if isinstance(value, (list, tuple, set)):
+        return [
+            _sanitize_audit_value(x, depth=depth + 1)
+            for x in list(value)[:MAX_AUDIT_DETAIL_ITEMS]
+        ]
+    return str(value)[:MAX_AUDIT_TEXT_CHARS]
+
+
+def _bounded_audit_detail(detail: dict[str, Any] | None) -> dict[str, Any]:
+    clean = _sanitize_audit_value(dict(detail or {}))
+    if not isinstance(clean, dict):
+        clean = {"detail": clean}
+    encoded = json.dumps(
+        clean,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    if len(encoded) <= MAX_AUDIT_DETAIL_BYTES:
+        return clean
+    return {
+        "detail_truncated": True,
+        "detail_sha256": hashlib.sha256(encoded).hexdigest(),
+        "original_sanitized_bytes": len(encoded),
+    }
 
 
 def _validate_username(username: str) -> str:
@@ -146,9 +210,19 @@ def record_audit_event(
     if not action:
         raise ValueError("Audit action must be non-empty")
     occurred_at = occurred_at or utc_now()
-    clean_detail = dict(detail or {})
-    for forbidden in ("password", "token", "session_token", "secret"):
-        clean_detail.pop(forbidden, None)
+    clean_detail = _bounded_audit_detail(detail)
+    target_type = (
+        None if target_type is None
+        else str(target_type)[:64]
+    )
+    target_id = (
+        None if target_id is None
+        else str(target_id)[:MAX_AUDIT_TEXT_CHARS]
+    )
+    tenant_key = (
+        None if tenant_key is None
+        else str(tenant_key)[:128]
+    )
 
     with connect_catalog(root) as conn:
         # Serialize the read-head + append operation so concurrent web requests
@@ -253,6 +327,8 @@ def create_user(
     username = _validate_username(username)
     if len(password) < 12:
         raise ValueError("Password must contain at least 12 characters")
+    if len(password) > MAX_PASSWORD_CHARS:
+        raise ValueError(f"Password cannot exceed {MAX_PASSWORD_CHARS} characters")
     if iterations < 100_000:
         raise ValueError("PBKDF2 iterations must be at least 100000")
     salt = secrets.token_bytes(16)
@@ -466,32 +542,55 @@ def authenticate_user(
     tenant_key: str,
 ) -> dict[str, Any] | None:
     root = _private_root(root)
-    try:
-        username = _validate_username(username)
-        tenant = _validate_tenant(tenant_key)
-    except ValueError:
-        return None
+    password_text = str(password)
     with connect_catalog(root) as conn:
-        row = conn.execute(
-            """
-            SELECT u.*,m.role
-            FROM workspace_user u
-            JOIN workspace_tenant_membership m ON m.user_id=u.user_id
-            WHERE u.username=? COLLATE NOCASE
-              AND m.tenant_key=?
-            """,
-            (username, tenant),
-        ).fetchone()
-    if row is None or not row["is_active"]:
+        max_iterations = int(
+            conn.execute(
+                "SELECT COALESCE(MAX(password_iterations), ?) AS n FROM workspace_user",
+                (DEFAULT_ITERATIONS,),
+            ).fetchone()["n"]
+        )
+        try:
+            valid_username = _validate_username(username)
+            tenant = _validate_tenant(tenant_key)
+        except ValueError:
+            row = None
+            tenant = None
+        else:
+            row = conn.execute(
+                """
+                SELECT u.*,m.role
+                FROM workspace_user u
+                JOIN workspace_tenant_membership m ON m.user_id=u.user_id
+                WHERE u.username=? COLLATE NOCASE
+                  AND m.tenant_key=?
+                """,
+                (valid_username, tenant),
+            ).fetchone()
+
+    if len(password_text) > MAX_PASSWORD_CHARS:
+        _dummy_password_work(password_text, max_iterations)
         return None
+
+    if row is None or not row["is_active"]:
+        _dummy_password_work(password_text, max_iterations)
+        return None
+
     try:
+        iterations = int(row["password_iterations"])
         actual = _password_digest(
-            password,
+            password_text,
             _b64d(row["password_salt"]),
-            int(row["password_iterations"]),
+            iterations,
         )
         expected = _b64d(row["password_hash"])
+        if max_iterations > iterations:
+            _dummy_password_work(
+                password_text,
+                max_iterations - iterations,
+            )
     except Exception:
+        _dummy_password_work(password_text, max_iterations)
         return None
     if not hmac.compare_digest(actual, expected):
         return None
@@ -605,19 +704,52 @@ def verify_session(
             """,
             (_token_hash(token),),
         ).fetchone()
-        if row is None:
-            return None
-        if row["revoked_at"] is not None or not row["is_active"]:
-            return None
-        if row["current_role"] is None or row["current_role"] != row["role"]:
-            return None
-        if now >= datetime.fromisoformat(row["expires_at"]):
-            return None
-        conn.execute(
-            "UPDATE workspace_session SET last_seen_at=? WHERE session_id=?",
-            (now.isoformat(), row["session_id"]),
-        )
-        conn.commit()
+
+    if row is None:
+        return None
+    if row["revoked_at"] is not None or not row["is_active"]:
+        return None
+    if row["current_role"] is None or row["current_role"] != row["role"]:
+        return None
+    if now >= datetime.fromisoformat(row["expires_at"]):
+        return None
+
+    last_seen = None
+    if row["last_seen_at"]:
+        try:
+            last_seen = datetime.fromisoformat(row["last_seen_at"])
+        except ValueError:
+            last_seen = None
+    should_touch = (
+        last_seen is None
+        or now - last_seen >= timedelta(minutes=SESSION_TOUCH_INTERVAL_MINUTES)
+    )
+    if should_touch:
+        try:
+            with connect_catalog(root, busy_timeout_ms=50) as conn:
+                conn.execute(
+                    """
+                    UPDATE workspace_session
+                    SET last_seen_at=?
+                    WHERE session_id=?
+                      AND (last_seen_at IS NULL OR last_seen_at<?)
+                    """,
+                    (
+                        now.isoformat(),
+                        row["session_id"],
+                        (
+                            now - timedelta(
+                                minutes=SESSION_TOUCH_INTERVAL_MINUTES
+                            )
+                        ).isoformat(),
+                    ),
+                )
+                conn.commit()
+        except sqlite3.OperationalError as exc:
+            message = str(exc).lower()
+            if "locked" not in message and "busy" not in message:
+                raise
+
     return {
         "session_id": row["session_id"],
         "user_id": row["user_id"],
