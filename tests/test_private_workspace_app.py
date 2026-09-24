@@ -18,6 +18,7 @@ from clr.local_store import (
 )
 from clr.private_workspace_app import (
     _safe_output_file,
+    list_private_reports,
     make_handler,
     render_dashboard,
     serve_private_workspace,
@@ -386,5 +387,27 @@ def test_web_shell_rejects_noncanonical_tenant_keys(tmp_path):
         conn.commit()
 
     assert not tenant_exists(root, "TENANT/A")
-    with pytest.raises(ValueError, match="tenant keys must use only"):
+    with pytest.raises(ValueError):
         workspace_catalog(root, "TENANT/A")
+
+    for bad in (".", "..", "...", ".hidden", "TENANT."):
+        assert not tenant_exists(root, bad)
+        with pytest.raises(ValueError):
+            workspace_catalog(root, bad)
+        with pytest.raises(ValueError):
+            list_private_reports(root, bad)
+
+
+def test_dot_segment_tenant_cannot_expand_report_boundary(tmp_path):
+    root, _, _, _ = _workspace(tmp_path)
+    b_dir = root / "outputs" / "reports" / "TENANT_B" / "asset" / "B"
+    b_dir.mkdir(parents=True, exist_ok=True)
+    secret = b_dir / "decision-workspace-secret.html"
+    secret.write_text("<html>TENANT_B SECRET</html>", encoding="utf-8")
+
+    relative = secret.relative_to(root).as_posix()
+    for bad in (".", "..", "...", ".hidden"):
+        with pytest.raises(ValueError):
+            _safe_output_file(root, bad, relative, suffixes=(".html",))
+        with pytest.raises(ValueError):
+            list_private_reports(root, bad)

@@ -10,7 +10,7 @@ import pandas as pd
 
 from .decision_report_html import render_decision_workspace_html
 from .decision_reports import decision_workspace_report
-from .local_store import connect_catalog, sha256_file
+from .local_store import canonical_tenant_key, connect_catalog, sha256_file, tenant_report_dir
 from .portfolio import exposure_in_footprint
 from .product_output import (
     asset_intelligence_report,
@@ -724,8 +724,7 @@ def build_private_decision_workspace(
     scope = str(scope_type).upper().strip()
     if scope not in {"ASSET", "PORTFOLIO"}:
         raise ValueError("scope_type must be ASSET or PORTFOLIO")
-    if not str(tenant_key).strip():
-        raise ValueError("tenant_key must be non-empty")
+    tenant_key = canonical_tenant_key(tenant_key)
 
     with connect_catalog(root) as conn:
         indicator_runs = _require_runs(conn, indicator_run_ids)
@@ -918,14 +917,16 @@ def write_private_decision_workspace(
 ) -> dict[str, str]:
     root = _require_private_root(root)
     scope = report["scope"]
+    tenant_root = tenant_report_dir(root, scope["tenant_scope"])
     out_dir = (
-        root
-        / "outputs"
-        / "reports"
-        / _safe_part(scope["tenant_scope"])
+        tenant_root
         / _safe_part(scope["scope_type"].lower())
         / _safe_part(scope["subject_id"])
-    )
+    ).resolve()
+    try:
+        out_dir.relative_to(tenant_root)
+    except ValueError as exc:
+        raise ValueError("Decision report output escaped the tenant report directory") from exc
     out_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     stem = f"decision-workspace-{timestamp}"

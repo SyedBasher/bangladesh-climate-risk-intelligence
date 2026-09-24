@@ -1,13 +1,16 @@
 import json
+import subprocess
 from pathlib import Path
 
 from clr.local_store import (
+    canonical_tenant_key,
     connect_catalog,
     initialize_workspace,
     parquet_partition_dir,
     register_source_file,
     start_processing_run,
     finish_processing_run,
+    tenant_report_dir,
 )
 
 
@@ -158,3 +161,65 @@ def test_parquet_partition_convention(tmp_path):
     assert path.as_posix().endswith(
         "indicators/asset_heat/year=2025/source=ERA5L_DAILY"
     )
+
+
+def test_initialized_workspace_is_self_protecting_for_git(tmp_path):
+    root = tmp_path / "custom_workspace_name"
+    initialize_workspace(root, schema_path())
+    ignore = (root / ".gitignore").read_text(encoding="utf-8")
+    assert "*" in ignore.splitlines()
+    assert "!.gitignore" not in ignore.splitlines()
+    assert (root / ".private-data-root").exists()
+    assert (root / "workspace.json").exists()
+
+
+def test_initialize_workspace_refuses_repository_root(tmp_path):
+    root = tmp_path / "repo"
+    (root / ".git").mkdir(parents=True)
+    try:
+        initialize_workspace(root, schema_path())
+    except ValueError as exc:
+        assert "Git repository root" in str(exc)
+    else:
+        raise AssertionError("Expected repository-root initialization to fail closed")
+
+
+def test_canonical_tenant_key_rejects_path_segments_and_keeps_normal_dots(tmp_path):
+    assert canonical_tenant_key("ACME.BD") == "ACME.BD"
+    assert canonical_tenant_key("TENANT_A-1") == "TENANT_A-1"
+    for bad in (".", "..", "...", ".hidden", "TENANT.", "TENANT/A", "", " TENANT", "TENANT "):
+        try:
+            canonical_tenant_key(bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"Expected tenant key to be rejected: {bad!r}")
+
+    root = tmp_path / "private_data"
+    initialize_workspace(root, schema_path())
+    reports_root = (root / "outputs" / "reports").resolve()
+    tenant_dir = tenant_report_dir(root, "ACME.BD")
+    assert tenant_dir.parent == reports_root
+
+
+def test_custom_workspace_is_ignored_inside_an_unrelated_git_repo(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    root = repo / "climate_private_workspace"
+    initialize_workspace(root, schema_path())
+    secret = root / "auth" / "audit_chain_secret.bin"
+    secret.write_bytes(b"synthetic-secret")
+
+    for path in [
+        root / ".private-data-root",
+        root / "workspace.json",
+        secret,
+        root / "manifests" / "source_vintages",
+        root / "outputs" / "reports",
+    ]:
+        result = subprocess.run(
+            ["git", "check-ignore", "-q", str(path.relative_to(repo))],
+            cwd=repo,
+        )
+        assert result.returncode == 0, path

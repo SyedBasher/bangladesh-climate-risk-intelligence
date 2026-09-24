@@ -445,3 +445,17 @@ def test_adapter_rejects_compound_run_from_another_tenant(tmp_path):
             asset_location_id=assets["A"]["asset_location_id"],
             compound_run_id=compound_run,
         )
+
+
+def test_decision_adapter_rejects_path_like_tenant_scope(tmp_path):
+    root, source, assets = _workspace(tmp_path)
+    indicator_run = _successful_indicator_run(root, source, assets)
+    for bad in (".", "..", "...", ".hidden", "TENANT."):
+        with pytest.raises(ValueError):
+            build_private_decision_workspace(
+                root,
+                scope_type="ASSET",
+                tenant_key=bad,
+                indicator_run_ids=[indicator_run],
+                asset_location_id=assets["A"]["asset_location_id"],
+            )

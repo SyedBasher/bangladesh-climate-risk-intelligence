@@ -62,3 +62,18 @@ htmlcov/
 Thumbs.db
 .vscode/
 .idea/
+
+# Private workspace artifacts even under a custom in-repository root.
+# Initialized workspaces also create their own root .gitignore.
+**/.private-data-root
+**/workspace_auth.json
+**/audit_chain_secret.bin
+**/session_secret.bin
+**/outputs/reports/
+**/outputs/qa/
+**/backups/catalog/
+**/manifests/source_vintages/
+**/manifests/plans/
+**/normalized/
+**/indicators/
+**/tmp/clr-restore-rehearsal-*/

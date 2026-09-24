@@ -12,14 +12,13 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from .local_store import connect_catalog, utc_now
+from .local_store import canonical_tenant_key, connect_catalog, utc_now
 
 ACCESS_SCHEMA_VERSION = "0.1.0"
 DEFAULT_ITERATIONS = 310_000
 DEFAULT_SESSION_MINUTES = 60
 AUDIT_SECRET_FILE = "audit_chain_secret.bin"
 _USERNAME_RE = re.compile(r"^[A-Za-z0-9._@+-]{3,128}$")
-_TENANT_RE = re.compile(r"^[A-Za-z0-9._=-]{1,128}$")
 ROLES = {"ADMIN", "ANALYST", "VIEWER"}
 PERMISSIONS = {
     "ADMIN": {"VIEW_REPORT", "GENERATE_REPORT", "MANAGE_ACCESS", "VIEW_AUDIT"},
@@ -62,12 +61,7 @@ def _validate_username(username: str) -> str:
 
 
 def _validate_tenant(tenant_key: str) -> str:
-    value = str(tenant_key).strip()
-    if not _TENANT_RE.fullmatch(value):
-        raise ValueError(
-            "tenant_key must use only letters, numbers, dot, underscore, equals and hyphen"
-        )
-    return value
+    return canonical_tenant_key(tenant_key)
 
 
 def _validate_role(role: str) -> str:

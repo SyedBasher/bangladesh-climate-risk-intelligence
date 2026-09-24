@@ -263,6 +263,14 @@ def test_invalid_username_tenant_and_role_fail_closed(tmp_path):
             tenant_key="TENANT/A",
             role="ANALYST",
         )
+    for bad in (".", "..", "...", ".hidden", "TENANT."):
+        with pytest.raises(ValueError):
+            grant_membership(
+                root,
+                user_id=user["user_id"],
+                tenant_key=bad,
+                role="ANALYST",
+            )
     with pytest.raises(ValueError):
         grant_membership(
             root,

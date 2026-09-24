@@ -20,13 +20,42 @@ FORBIDDEN_PREFIXES = (
 )
 
 FORBIDDEN_SUFFIXES = (
-    ".db", ".sqlite", ".sqlite3", ".duckdb", ".parquet", ".feather",
+    ".db", ".db-wal", ".db-shm",
+    ".sqlite", ".sqlite-wal", ".sqlite-shm",
+    ".sqlite3", ".sqlite3-wal", ".sqlite3-shm",
+    ".duckdb", ".parquet", ".feather",
     ".pbf", ".tif", ".tiff", ".nc", ".grib", ".grib2", ".gpkg",
     ".shp", ".shx", ".dbf", ".vrt",
 )
 
+FORBIDDEN_PATH_FRAGMENTS = (
+    "/outputs/reports/",
+    "/outputs/qa/",
+    "/backups/catalog/",
+    "/manifests/source_vintages/",
+    "/manifests/plans/",
+    "/normalized/assets/",
+    "/normalized/admin/",
+    "/normalized/climate/",
+    "/normalized/roads/",
+    "/normalized/events/",
+    "/indicators/asset/",
+    "/indicators/admin/",
+    "/indicators/portfolio/",
+    "/indicators/logistics/",
+    "/tmp/clr-restore-rehearsal-",
+)
+
 FORBIDDEN_BASENAMES = {
-    ".env", ".cdsapirc", "credentials.json", "secrets.json",
+    ".env",
+    ".cdsapirc",
+    ".private-data-root",
+    "credentials.json",
+    "secrets.json",
+    "workspace.json",
+    "workspace_auth.json",
+    "audit_chain_secret.bin",
+    "session_secret.bin",
 }
 
 
@@ -50,10 +79,22 @@ def boundary_violations(paths: list[str]) -> list[str]:
         if any(lower.startswith(prefix) for prefix in FORBIDDEN_PREFIXES):
             bad.append(p)
             continue
+        padded = "/" + lower.lstrip("/")
+        if any(fragment in padded for fragment in FORBIDDEN_PATH_FRAGMENTS):
+            bad.append(p)
+            continue
         if lower.endswith(FORBIDDEN_SUFFIXES):
             bad.append(p)
             continue
         if base in FORBIDDEN_BASENAMES:
+            bad.append(p)
+            continue
+        if base.startswith("decision-workspace-") and base.endswith(
+            (".html", ".json", ".manifest.json")
+        ):
+            bad.append(p)
+            continue
+        if base.startswith("private-pilot-rehearsal-") and base.endswith(".json"):
             bad.append(p)
     return sorted(set(bad))
 
