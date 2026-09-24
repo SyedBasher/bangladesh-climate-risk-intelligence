@@ -36,6 +36,7 @@ WORKSPACE_DIRS = (
 )
 
 SAFE_PART = re.compile(r"[^A-Za-z0-9._=-]+")
+TENANT_KEY_RE = re.compile(r"^[A-Za-z0-9._=-]{1,128}$")
 
 
 def utc_now() -> str:
@@ -57,6 +58,28 @@ def _safe_part(value: object) -> str:
     return SAFE_PART.sub("_", text)
 
 
+def canonical_tenant_key(value: object) -> str:
+    """Validate a tenant key that is safe as both a DB scope and path segment."""
+    tenant = str(value).strip()
+    if not TENANT_KEY_RE.fullmatch(tenant):
+        raise ValueError(
+            "tenant_key must be 1-128 characters using only letters, numbers, dot, underscore, equals, and hyphen"
+        )
+    if tenant.startswith(".") or tenant.endswith("."):
+        raise ValueError("tenant_key cannot start or end with a dot")
+    return tenant
+
+
+def tenant_report_dir(root: str | Path, tenant_key: object) -> Path:
+    """Return the tenant report root and prove it is a strict child."""
+    tenant = canonical_tenant_key(tenant_key)
+    reports_root = (Path(root).resolve() / "outputs" / "reports").resolve()
+    path = (reports_root / tenant).resolve()
+    if path.parent != reports_root:
+        raise ValueError("tenant report directory is not a strict child of outputs/reports")
+    return path
+
+
 def _within(root: Path, path: Path) -> bool:
     root = root.resolve()
     path = path.resolve()
@@ -73,7 +96,31 @@ def catalog_path(root: str | Path) -> Path:
 
 def initialize_workspace(root: str | Path, schema_path: str | Path) -> dict:
     root = Path(root).resolve()
+    if (root / ".git").exists():
+        raise ValueError("Refusing to initialize a private workspace at a Git repository root")
     root.mkdir(parents=True, exist_ok=True)
+
+    # Make every initialized workspace self-protecting even when its directory
+    # name is not one of the repository's conventional private-data names.
+    workspace_gitignore = root / ".gitignore"
+    protective_block = (
+        "# Managed by climate-risk private workspace initialization.\n"
+        "*\n"
+        "!.gitignore\n"
+    )
+    existing_ignore = (
+        workspace_gitignore.read_text(encoding="utf-8")
+        if workspace_gitignore.exists()
+        else ""
+    )
+    if protective_block not in existing_ignore:
+        prefix = existing_ignore
+        if prefix and not prefix.endswith("\n"):
+            prefix += "\n"
+        workspace_gitignore.write_text(
+            prefix + protective_block,
+            encoding="utf-8",
+        )
     for rel in WORKSPACE_DIRS:
         (root / rel).mkdir(parents=True, exist_ok=True)
 
