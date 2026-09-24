@@ -1,4 +1,5 @@
 import json
+import subprocess
 from pathlib import Path
 
 from clr.local_store import (
@@ -199,3 +200,26 @@ def test_canonical_tenant_key_rejects_path_segments_and_keeps_normal_dots(tmp_pa
     reports_root = (root / "outputs" / "reports").resolve()
     tenant_dir = tenant_report_dir(root, "ACME.BD")
     assert tenant_dir.parent == reports_root
+
+
+def test_custom_workspace_is_ignored_inside_an_unrelated_git_repo(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    root = repo / "climate_private_workspace"
+    initialize_workspace(root, schema_path())
+    secret = root / "auth" / "audit_chain_secret.bin"
+    secret.write_bytes(b"synthetic-secret")
+
+    for path in [
+        root / ".private-data-root",
+        root / "workspace.json",
+        secret,
+        root / "manifests" / "source_vintages",
+        root / "outputs" / "reports",
+    ]:
+        result = subprocess.run(
+            ["git", "check-ignore", "-q", str(path.relative_to(repo))],
+            cwd=repo,
+        )
+        assert result.returncode == 0, path
