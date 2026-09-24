@@ -167,7 +167,7 @@ def test_initialized_workspace_is_self_protecting_for_git(tmp_path):
     initialize_workspace(root, schema_path())
     ignore = (root / ".gitignore").read_text(encoding="utf-8")
     assert "*" in ignore.splitlines()
-    assert "!.gitignore" in ignore.splitlines()
+    assert "!.gitignore" not in ignore.splitlines()
     assert (root / ".private-data-root").exists()
     assert (root / "workspace.json").exists()
 
@@ -186,7 +186,7 @@ def test_initialize_workspace_refuses_repository_root(tmp_path):
 def test_canonical_tenant_key_rejects_path_segments_and_keeps_normal_dots(tmp_path):
     assert canonical_tenant_key("ACME.BD") == "ACME.BD"
     assert canonical_tenant_key("TENANT_A-1") == "TENANT_A-1"
-    for bad in (".", "..", "...", ".hidden", "TENANT.", "TENANT/A", ""):
+    for bad in (".", "..", "...", ".hidden", "TENANT.", "TENANT/A", "", " TENANT", "TENANT "):
         try:
             canonical_tenant_key(bad)
         except ValueError:
