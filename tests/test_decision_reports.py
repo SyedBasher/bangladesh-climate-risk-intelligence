@@ -87,6 +87,7 @@ def _portfolio_report():
                 "metric_id": "ead_share_in_rp100_footprint",
                 "value": 0.25,
                 "unit": "share",
+                "denominator_count": 4,
                 "classification": "BANK_CONCENTRATION",
                 "source_vintage": "SYNTH_VINTAGE",
                 "quality_flag": "OK",
@@ -138,6 +139,7 @@ def test_decision_workspace_assembles_governed_modules_without_score():
     assert len(report["operational_transmission"]) == 1
     assert report["cross_asset_portfolio"]["cross_asset_metrics"][0]["denominator"] == 4
     assert report["cross_asset_portfolio"]["portfolio_metrics"][0]["value"] == 0.25
+    assert report["cross_asset_portfolio"]["portfolio_metrics"][0]["denominator_count"] == 4
     assert report["evidence_provenance"][0]["input_manifest"]["inputs"][0]["dataset_name"] == "synthetic"
     assert "risk_score" not in str(report)
     assert any("No overall or composite" in x for x in report["guardrails"])
@@ -215,3 +217,27 @@ def test_missing_data_is_structured_and_deduplicated():
     items = [x["data_item"] for x in report["what_data_would_change_the_answer"]]
     assert items.count("Add workforce by shift.") == 1
     assert "Add cooling and backup power." in items
+
+
+def test_decision_workspace_requires_portfolio_share_denominator():
+    portfolio = _portfolio_report()
+    portfolio["portfolio_metrics"][0].pop("denominator_count")
+    with pytest.raises(ValueError, match="denominator_count"):
+        decision_workspace_report(
+            scope_type="PORTFOLIO",
+            tenant_scope="INTERNAL",
+            subject_id="SYNTH_PORTFOLIO",
+            portfolio_report=portfolio,
+        )
+
+
+def test_decision_workspace_rejects_fractional_portfolio_denominator():
+    portfolio = _portfolio_report()
+    portfolio["portfolio_metrics"][0]["denominator_count"] = 2.5
+    with pytest.raises(ValueError, match="must be an integer"):
+        decision_workspace_report(
+            scope_type="PORTFOLIO",
+            tenant_scope="INTERNAL",
+            subject_id="SYNTH_PORTFOLIO",
+            portfolio_report=portfolio,
+        )
