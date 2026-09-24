@@ -18,6 +18,8 @@ def test_gitignore_explicitly_blocks_private_workspace():
     assert "*.sqlite" in text
     assert "**/.private-data-root" in text
     assert "**/audit_chain_secret.bin" in text
+    assert "**/audit_head_anchor.json" in text
+    assert "*.clrbackup" in text
 
 
 def test_boundary_guard_catches_forced_private_files():
@@ -28,7 +30,9 @@ def test_boundary_guard_catches_forced_private_files():
         "pilot/.private-data-root",
         "pilot/workspace.json",
         "pilot/auth/audit_chain_secret.bin",
+        "pilot/auth/audit_head_anchor.json",
         "pilot/auth/workspace_auth.json",
+        "pilot/backups/recovery/private_pilot_20260924.clrbackup",
         "pilot/manifests/source_vintages/SRC/2026-09-24/abc.json",
         "pilot/manifests/plans/jrc_flood/asset_tile_plan.json",
         "pilot/normalized/assets/assets.parquet",
