@@ -24,6 +24,9 @@ gitignored private workspace
 
 Do not expose port `8766` through the host firewall, load balancer, container ingress or cloud security group.
 
+
+Do **not** run or proxy `scripts/run_private_workspace_app.py` on the host. That module is the deprecated shared-password local compatibility shell and is deliberately not part of the hosted topology.
+
 ## Files
 
 - `Caddyfile.example` — TLS reverse-proxy example.
@@ -86,8 +89,10 @@ After the private analytical workspace exists:
 
 ```bash
 python scripts/init_private_pilot_access.py
-python scripts/manage_private_workspace_users.py create-user --username analyst@example.com
-python scripts/manage_private_workspace_users.py grant --username analyst@example.com --tenant TENANT_A --role ANALYST
+python scripts/manage_private_workspace_users.py create-user --username admin@example.com
+python scripts/manage_private_workspace_users.py grant --username admin@example.com --tenant TENANT_A --role ADMIN
+python scripts/manage_private_workspace_users.py create-user --username analyst@example.com --actor-username admin@example.com
+python scripts/manage_private_workspace_users.py grant --username analyst@example.com --tenant TENANT_A --role ANALYST --actor-username admin@example.com
 ```
 
 Passwords are entered through hidden terminal input.
@@ -127,6 +132,23 @@ Do not place any of these in GitHub.
 For a production deployment, the audit-chain key and other service secrets should move to the hosting platform's secret manager or another independently controlled secret store.
 
 ## Backup and recovery
+
+Operational private-pilot backups must use the encrypted recovery-bundle command:
+
+```bash
+python scripts/backup_private_catalog.py --destination /secure/off-host/location
+```
+
+The bundle contains the catalog, audit key and audit-head anchor. A catalog-only copy is insufficient for audit recovery.
+
+Restore drills must use a fresh empty target:
+
+```bash
+python scripts/restore_private_pilot_backup.py \
+  --bundle /secure/off-host/private_pilot_<timestamp>.clrbackup \
+  --target /secure/empty/recovery-test
+```
+
 
 The SQLite catalog now contains both analytical lineage and access-control state. Catalog backups therefore contain sensitive authentication metadata.
 
