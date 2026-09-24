@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from clr.local_assets import accepted_assets, coarse_climate_assets, import_asset_rows
 from clr.local_store import initialize_workspace
 
@@ -92,3 +94,21 @@ def test_invalid_coordinate_fails_closed(tmp_path):
     )
     assert result["inserted"] == 0
     assert len(result["rejected"]) == 1
+
+
+def test_asset_import_rejects_noncanonical_tenant_before_writing(tmp_path):
+    root = tmp_path / "private_data"
+    initialize_workspace(root, schema_path())
+    rows = [{
+        "external_system": "SYNTH",
+        "external_id": "A",
+        "asset_type": "FACTORY",
+        "latitude": 24.0,
+        "longitude": 90.4,
+        "coordinate_source": "SYNTHETIC",
+        "site_identity_grade": "EXACT_SITE",
+        "coordinate_status": "RESOLVED",
+    }]
+    for bad in (".", "..", "...", ".hidden", "TENANT."):
+        with pytest.raises(ValueError):
+            import_asset_rows(root, rows, tenant_key=bad)
