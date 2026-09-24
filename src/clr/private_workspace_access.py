@@ -982,19 +982,34 @@ def create_user(
     if len(password) < 12:
         raise ValueError("Password must contain at least 12 characters")
     if len(password) > MAX_PASSWORD_CHARS:
-        raise ValueError(f"Password cannot exceed {MAX_PASSWORD_CHARS} characters")
+        raise ValueError(
+            f"Password cannot exceed {MAX_PASSWORD_CHARS} characters"
+        )
     if iterations < 100_000:
         raise ValueError("PBKDF2 iterations must be at least 100000")
+
     salt = secrets.token_bytes(16)
     digest = _password_digest(password, salt, iterations)
     user_id = str(uuid.uuid4())
     now = utc_now()
-    with connect_catalog(root) as conn:
+    event = _normalize_audit_event(
+        actor_user_id=actor_user_id,
+        tenant_key=None,
+        action="USER_CREATED",
+        outcome="SUCCESS",
+        target_type="USER",
+        target_id=user_id,
+        detail={"username": username},
+        occurred_at=now,
+    )
+
+    def mutation(conn: sqlite3.Connection) -> None:
         conn.execute(
             """
             INSERT INTO workspace_user(
                 user_id,username,display_name,password_hash,password_salt,
-                password_iterations,is_active,created_at,updated_at,password_changed_at
+                password_iterations,is_active,created_at,updated_at,
+                password_changed_at
             ) VALUES(?,?,?,?,?,?,?,?,?,?)
             """,
             (
@@ -1010,18 +1025,17 @@ def create_user(
                 now,
             ),
         )
-        conn.commit()
-    record_audit_event(
+
+    _run_audited_transaction(
         root,
-        actor_user_id=actor_user_id,
-        tenant_key=None,
-        action="USER_CREATED",
-        outcome="SUCCESS",
-        target_type="USER",
-        target_id=user_id,
-        detail={"username": username},
+        event=event,
+        mutation=mutation,
     )
-    return {"user_id": user_id, "username": username, "is_active": True}
+    return {
+        "user_id": user_id,
+        "username": username,
+        "is_active": True,
+    }
 
 
 def set_user_password(
@@ -1038,7 +1052,18 @@ def set_user_password(
     salt = secrets.token_bytes(16)
     digest = _password_digest(password, salt, iterations)
     now = utc_now()
-    with connect_catalog(root) as conn:
+    event = _normalize_audit_event(
+        actor_user_id=actor_user_id,
+        tenant_key=None,
+        action="PASSWORD_CHANGED",
+        outcome="SUCCESS",
+        target_type="USER",
+        target_id=user_id,
+        detail=None,
+        occurred_at=now,
+    )
+
+    def mutation(conn: sqlite3.Connection) -> None:
         cur = conn.execute(
             """
             UPDATE workspace_user
@@ -1046,7 +1071,14 @@ def set_user_password(
                 updated_at=?,password_changed_at=?
             WHERE user_id=?
             """,
-            (_b64e(digest), _b64e(salt), int(iterations), now, now, user_id),
+            (
+                _b64e(digest),
+                _b64e(salt),
+                int(iterations),
+                now,
+                now,
+                user_id,
+            ),
         )
         if cur.rowcount != 1:
             raise KeyError(f"Unknown user: {user_id}")
@@ -1058,15 +1090,11 @@ def set_user_password(
             """,
             (now, user_id),
         )
-        conn.commit()
-    record_audit_event(
+
+    _run_audited_transaction(
         root,
-        actor_user_id=actor_user_id,
-        tenant_key=None,
-        action="PASSWORD_CHANGED",
-        outcome="SUCCESS",
-        target_type="USER",
-        target_id=user_id,
+        event=event,
+        mutation=mutation,
     )
 
 
@@ -1079,27 +1107,42 @@ def set_user_active(
 ) -> None:
     root = _private_root(root)
     now = utc_now()
-    with connect_catalog(root) as conn:
-        cur = conn.execute(
-            "UPDATE workspace_user SET is_active=?,updated_at=? WHERE user_id=?",
-            (1 if is_active else 0, now, user_id),
-        )
-        if cur.rowcount != 1:
-            raise KeyError(f"Unknown user: {user_id}")
-        if not is_active:
-            conn.execute(
-                "UPDATE workspace_session SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL",
-                (now, user_id),
-            )
-        conn.commit()
-    record_audit_event(
-        root,
+    event = _normalize_audit_event(
         actor_user_id=actor_user_id,
         tenant_key=None,
         action="USER_ENABLED" if is_active else "USER_DISABLED",
         outcome="SUCCESS",
         target_type="USER",
         target_id=user_id,
+        detail=None,
+        occurred_at=now,
+    )
+
+    def mutation(conn: sqlite3.Connection) -> None:
+        cur = conn.execute(
+            """
+            UPDATE workspace_user
+            SET is_active=?,updated_at=?
+            WHERE user_id=?
+            """,
+            (1 if is_active else 0, now, user_id),
+        )
+        if cur.rowcount != 1:
+            raise KeyError(f"Unknown user: {user_id}")
+        if not is_active:
+            conn.execute(
+                """
+                UPDATE workspace_session
+                SET revoked_at=?
+                WHERE user_id=? AND revoked_at IS NULL
+                """,
+                (now, user_id),
+            )
+
+    _run_audited_transaction(
+        root,
+        event=event,
+        mutation=mutation,
     )
 
 
@@ -1115,7 +1158,18 @@ def grant_membership(
     tenant = _validate_tenant(tenant_key)
     role = _validate_role(role)
     now = utc_now()
-    with connect_catalog(root) as conn:
+    event = _normalize_audit_event(
+        actor_user_id=actor_user_id,
+        tenant_key=tenant,
+        action="MEMBERSHIP_GRANTED",
+        outcome="SUCCESS",
+        target_type="USER",
+        target_id=user_id,
+        detail={"role": role},
+        occurred_at=now,
+    )
+
+    def mutation(conn: sqlite3.Connection) -> None:
         user = conn.execute(
             "SELECT 1 FROM workspace_user WHERE user_id=?",
             (user_id,),
@@ -1140,16 +1194,11 @@ def grant_membership(
             """,
             (now, user_id, tenant),
         )
-        conn.commit()
-    record_audit_event(
+
+    _run_audited_transaction(
         root,
-        actor_user_id=actor_user_id,
-        tenant_key=tenant,
-        action="MEMBERSHIP_GRANTED",
-        outcome="SUCCESS",
-        target_type="USER",
-        target_id=user_id,
-        detail={"role": role},
+        event=event,
+        mutation=mutation,
     )
 
 
@@ -1163,9 +1212,23 @@ def revoke_membership(
     root = _private_root(root)
     tenant = _validate_tenant(tenant_key)
     now = utc_now()
-    with connect_catalog(root) as conn:
+    event = _normalize_audit_event(
+        actor_user_id=actor_user_id,
+        tenant_key=tenant,
+        action="MEMBERSHIP_REVOKED",
+        outcome="SUCCESS",
+        target_type="USER",
+        target_id=user_id,
+        detail=None,
+        occurred_at=now,
+    )
+
+    def mutation(conn: sqlite3.Connection) -> None:
         conn.execute(
-            "DELETE FROM workspace_tenant_membership WHERE user_id=? AND tenant_key=?",
+            """
+            DELETE FROM workspace_tenant_membership
+            WHERE user_id=? AND tenant_key=?
+            """,
             (user_id, tenant),
         )
         conn.execute(
@@ -1176,15 +1239,11 @@ def revoke_membership(
             """,
             (now, user_id, tenant),
         )
-        conn.commit()
-    record_audit_event(
+
+    _run_audited_transaction(
         root,
-        actor_user_id=actor_user_id,
-        tenant_key=tenant,
-        action="MEMBERSHIP_REVOKED",
-        outcome="SUCCESS",
-        target_type="USER",
-        target_id=user_id,
+        event=event,
+        mutation=mutation,
     )
 
 
