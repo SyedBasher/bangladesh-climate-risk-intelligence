@@ -1518,31 +1518,47 @@ def revoke_session(
         raise ValueError("token or session_id is required")
     root = _private_root(root)
     now = utc_now()
-    with connect_catalog(root) as conn:
-        if token:
-            row = conn.execute(
-                "SELECT * FROM workspace_session WHERE token_hash=?",
-                (_token_hash(token),),
-            ).fetchone()
-        else:
-            row = conn.execute(
-                "SELECT * FROM workspace_session WHERE session_id=?",
-                (session_id,),
-            ).fetchone()
-        if row is None:
-            return False
-        conn.execute(
-            "UPDATE workspace_session SET revoked_at=? WHERE session_id=?",
-            (now, row["session_id"]),
-        )
-        conn.commit()
-    record_audit_event(
-        root,
-        actor_user_id=actor_user_id or row["user_id"],
-        tenant_key=row["tenant_key"],
-        action="SESSION_REVOKED",
-        outcome="SUCCESS",
-        target_type="SESSION",
-        target_id=row["session_id"],
-    )
+
+    with _audit_write_guard(root):
+        with connect_catalog(root) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            _require_anchor_matches_db_locked(root, conn)
+            if token:
+                row = conn.execute(
+                    "SELECT * FROM workspace_session WHERE token_hash=?",
+                    (_token_hash(token),),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT * FROM workspace_session WHERE session_id=?",
+                    (session_id,),
+                ).fetchone()
+            if row is None:
+                conn.rollback()
+                return False
+
+            conn.execute(
+                """
+                UPDATE workspace_session
+                SET revoked_at=?
+                WHERE session_id=?
+                """,
+                (now, row["session_id"]),
+            )
+            event = _normalize_audit_event(
+                actor_user_id=actor_user_id or row["user_id"],
+                tenant_key=row["tenant_key"],
+                action="SESSION_REVOKED",
+                outcome="SUCCESS",
+                target_type="SESSION",
+                target_id=row["session_id"],
+                detail=None,
+                occurred_at=now,
+            )
+            _insert_audit_event_locked(root, conn, event)
+            _commit_audited_transaction_locked(
+                root,
+                conn,
+                updated_at=now,
+            )
     return True

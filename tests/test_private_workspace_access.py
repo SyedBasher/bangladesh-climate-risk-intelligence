@@ -22,6 +22,7 @@ from clr.private_workspace_access import (
     reanchor_audit,
     record_audit_event,
     revoke_membership,
+    revoke_session,
     role_allows,
     set_user_active,
     set_user_password,
@@ -829,3 +830,105 @@ def test_password_reset_rejects_overlong_password_without_changing_account(tmp_p
         password="synthetic-long-password",
         tenant_key="TENANT_A",
     ) is not None
+
+
+def test_session_revocation_is_atomic_with_audit_event(tmp_path):
+    root = _workspace(tmp_path)
+    user = create_user(
+        root,
+        username="logout-user",
+        password="synthetic-long-password",
+        iterations=100_000,
+    )
+    grant_membership(
+        root,
+        user_id=user["user_id"],
+        tenant_key="TENANT_A",
+        role="VIEWER",
+    )
+    token, session = create_session(
+        root,
+        user_id=user["user_id"],
+        tenant_key="TENANT_A",
+        role="VIEWER",
+        ttl_minutes=30,
+    )
+
+    assert revoke_session(root, token=token)
+    assert verify_session(root, token) is None
+
+    with connect_catalog(root) as conn:
+        row = conn.execute(
+            """
+            SELECT revoked_at
+            FROM workspace_session
+            WHERE session_id=?
+            """,
+            (session["session_id"],),
+        ).fetchone()
+        audit_rows = conn.execute(
+            """
+            SELECT count(*) AS n
+            FROM workspace_audit_event
+            WHERE action='SESSION_REVOKED'
+              AND target_id=?
+            """,
+            (session["session_id"],),
+        ).fetchone()["n"]
+
+    assert row["revoked_at"] is not None
+    assert audit_rows == 1
+    assert verify_audit_chain(root)["valid"]
+
+
+def test_session_revocation_rolls_back_when_audit_state_is_invalid(tmp_path):
+    root = _workspace(tmp_path)
+    user = create_user(
+        root,
+        username="logout-rollback-user",
+        password="synthetic-long-password",
+        iterations=100_000,
+    )
+    grant_membership(
+        root,
+        user_id=user["user_id"],
+        tenant_key="TENANT_A",
+        role="VIEWER",
+    )
+    token, session = create_session(
+        root,
+        user_id=user["user_id"],
+        tenant_key="TENANT_A",
+        role="VIEWER",
+        ttl_minutes=30,
+    )
+
+    anchor = root / "auth" / access_module.AUDIT_ANCHOR_FILE
+    payload = json.loads(anchor.read_text(encoding="utf-8"))
+    payload["event_count"] = int(payload["event_count"]) + 1
+    anchor.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(AuditStateError):
+        revoke_session(root, token=token)
+
+    with connect_catalog(root) as conn:
+        row = conn.execute(
+            """
+            SELECT revoked_at
+            FROM workspace_session
+            WHERE session_id=?
+            """,
+            (session["session_id"],),
+        ).fetchone()
+        audit_rows = conn.execute(
+            """
+            SELECT count(*) AS n
+            FROM workspace_audit_event
+            WHERE action='SESSION_REVOKED'
+              AND target_id=?
+            """,
+            (session["session_id"],),
+        ).fetchone()["n"]
+
+    assert row["revoked_at"] is None
+    assert audit_rows == 0
