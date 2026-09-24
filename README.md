@@ -103,7 +103,8 @@ See:
 - `src/clr/private_workspace_auth.py` — local password hashing and signed tenant-bound sessions
 - `src/clr/private_workspace_app.py` — legacy local-only shared-password compatibility shell; disabled by default
 - `src/clr/private_workspace_access.py` — named users, tenant roles, revocable opaque sessions, HMAC audit chain, and authenticated audit-head anchoring
-- `src/clr/private_workspace_pilot_app.py` — loopback-only named-user backend intended to sit behind a TLS reverse proxy
+- `src/clr/private_workspace_pilot_app.py` — loopback-only named-user backend with bounded login work, tenant/role authorization, and privacy-preserving request logs
+- `src/clr/private_auth_benchmark.py` — synthetic PBKDF2 host benchmark and global-login-ceiling calculator
 - `src/clr/private_pilot_rehearsal.py` — non-destructive preflight, encrypted recovery-bundle rehearsal, anchored audit verification, and deployment-example checks
 - `src/clr/synthetic_decision_demo.py` — reproducible synthetic public workspace fixture
 - `src/clr/intelligence.py` — transparent second-/third-order exposure logic
