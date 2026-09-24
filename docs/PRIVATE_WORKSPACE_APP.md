@@ -221,6 +221,12 @@ It does not yet provide:
 
 The absence of those features is why non-loopback binding is blocked.
 
+## Named-user hosted pilot
+
+The named-user pilot layer described in `docs/HOSTED_PRIVATE_PILOT_SECURITY.md` now implements the first deployment-security step above this local single-password shell.
+
+The local shell remains useful for one-workstation private analysis. The pilot layer is the path for named users, role-based tenant access, revocable sessions, audit chaining, and TLS reverse-proxy deployment.
+
 ## Next deployment step
 
 A later hosted private pilot should introduce, before any internet-facing use:
