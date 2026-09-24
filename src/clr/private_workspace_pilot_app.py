@@ -69,7 +69,7 @@ class _LoginRateLimiter:
 
     @staticmethod
     def key(username: str, tenant: str) -> str:
-        raw = f"{str(username).casefold()}\x00{str(tenant)}"
+        raw = f"{str(username).strip().casefold()}\x00{str(tenant)}"
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     @staticmethod
@@ -112,7 +112,7 @@ class _LoginRateLimiter:
 
 
 def _login_audit_detail(username: str) -> dict[str, str]:
-    normalized = str(username).casefold()[:MAX_LOGIN_USERNAME_CHARS]
+    normalized = str(username).strip().casefold()[:MAX_LOGIN_USERNAME_CHARS]
     return {
         "username_sha256": hashlib.sha256(
             normalized.encode("utf-8")
@@ -440,6 +440,8 @@ def make_pilot_handler(
         ) -> dict[str, list[str]]:
             length = int(self.headers.get("Content-Length", "0") or 0)
             if length <= 0 or length > int(max_bytes):
+                if length > int(max_bytes):
+                    self.close_connection = True
                 raise ValueError("Invalid form size")
             ctype = self.headers.get("Content-Type", "")
             if not ctype.startswith("application/x-www-form-urlencoded"):
