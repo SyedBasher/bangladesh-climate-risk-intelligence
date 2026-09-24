@@ -815,6 +815,7 @@ def insert_cross_asset_summary(
     heat_meta:dict,
     spi_meta:dict,
     route_meta:dict,
+    route_edge_meta:dict,
     site_depths:pd.DataFrame,
     year:int,
     return_period:int,
@@ -845,7 +846,7 @@ def insert_cross_asset_summary(
     )
     site_sources=site_flood_source_ids(root,site_depths)
 
-    manifest=_dataset_manifest(heat_meta,spi_meta,route_meta)
+    manifest=_dataset_manifest(heat_meta,spi_meta,route_meta,route_edge_meta)
     count=0
     for row in summary.to_dict(orient="records"):
         analysis=row["analysis_type"]
