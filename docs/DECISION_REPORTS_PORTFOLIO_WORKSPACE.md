@@ -162,8 +162,36 @@ Public GitHub must not contain:
 - source rasters or snapshots;
 - generated client reports.
 
+## Printable HTML renderer
+
+The workspace now has a standalone renderer in:
+
+- `src/clr/decision_report_html.py`
+
+The renderer:
+
+- accepts only a `DECISION_PORTFOLIO_WORKSPACE` object;
+- escapes supplied text before rendering;
+- keeps null reasons and quality states visible;
+- shows denominators next to cross-asset shares;
+- separates direct, second-order, compound, operational, logistics and portfolio evidence;
+- provides print CSS and a browser `Print / Save as PDF` control;
+- calculates no new hazard values, rankings, scores, losses or narrative findings.
+
+The reproducible public demonstration is built by:
+
+- `src/clr/synthetic_decision_demo.py`
+- `scripts/build_synthetic_decision_report.py`
+
+and is committed as:
+
+- `examples/synthetic/decision_workspace_demo.json`
+- `examples/synthetic/decision_workspace_demo.html`
+
+All names and values in those files are synthetic.
+
 ## Next implementation step
 
-The next component should be a printable HTML renderer and synthetic public demonstration generated from the structured workspace object.
+Add a private local workspace adapter that selects a governed asset or portfolio from the gitignored SQLite/Parquet data plane, assembles the existing report modules by explicit run/vintage, and writes client-ready report objects outside GitHub.
 
-The renderer should remain a pure presentation layer: it must not calculate new hazard values, invent narrative conclusions, or add hidden scoring.
+The adapter must not bypass the existing source-lineage, geocoding, tenant-scope, denominator or fail-closed rules.

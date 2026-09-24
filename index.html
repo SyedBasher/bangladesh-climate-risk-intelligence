@@ -70,7 +70,7 @@ h2{font-size:27px;letter-spacing:-.02em;margin:0}
 .next-label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#dbe8df;font-weight:700}
 .next-box{border:1px solid rgba(255,255,255,.22);border-radius:12px;padding:16px;background:rgba(255,255,255,.06)}
 .next-box div{font-size:13px;color:rgba(255,255,255,.82)}
-.next-box div+div{margin-top:8px}
+.next-box div+div{margin-top:8px}\n.report-link{display:inline-block;margin-top:15px;border:1px solid rgba(255,255,255,.35);border-radius:9px;padding:9px 12px;font-size:13px;font-weight:700;background:rgba(255,255,255,.08)}
 .evidence{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px}
 .panel h3{font-size:17px;margin:0 0 10px}
@@ -100,7 +100,7 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
       <a href="#asset">Asset</a>
       <a href="#intelligence">Intelligence</a>
       <a href="#evidence">Evidence</a>
-      <a href="#next">Next build</a>
+      <a href="#decision-report">Decision report</a>
     </nav>
   </div>
 </header>
@@ -122,7 +122,7 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
         <span class="badge"><span class="dot"></span> Cyclone context pipeline</span>
         <span class="badge"><span class="dot"></span> Exposure context pipeline</span>
         <span class="badge"><span class="dot"></span> Surface water &amp; land pipeline</span>
-        <span class="badge"><span class="dot"></span> Compound intelligence pipeline</span>
+        <span class="badge"><span class="dot"></span> Compound intelligence pipeline</span>\n        <span class="badge"><span class="dot"></span> Decision reports pipeline</span>
       </div>
     </div>
     <aside class="demo-note">
@@ -293,18 +293,20 @@ footer{padding:38px 0 50px;color:#788078;font-size:12px}
     </div>
   </section>
 
-  <section class="section" id="next">
+  <section class="section" id="decision-report">
     <div class="next-card">
       <div>
-        <div class="next-label">Next build</div>
+        <div class="next-label">Current product layer</div>
         <h3>Decision Reports &amp; Portfolio Workspace</h3>
-        <p>Turn the governed asset, compound, logistics and portfolio evidence into decision-facing reports and drill-down views while keeping source lineage, denominators, uncertainty and missing-data priorities visible.</p>
+        <p>The governed asset, compound, logistics and portfolio layers can now be assembled into a structured decision workspace and rendered as a printable HTML report without adding a composite score or new hazard calculations.</p>
+        <a class="report-link" href="examples/synthetic/decision_workspace_demo.html">Open synthetic printable decision report →</a>
       </div>
       <div class="next-box">
-        <div>Asset intelligence briefs</div>
-        <div>Cross-asset and portfolio drill-downs</div>
-        <div>Evidence and data-gap panels</div>
-        <div>Exportable governed reports</div>
+        <div>Executive evidence summary with source references</div>
+        <div>Direct, second-order and compound evidence kept separate</div>
+        <div>Explicit denominators and missing-data priorities</div>
+        <div>Print / Save as PDF from standalone HTML</div>
+        <div><strong>Next:</strong> private local workspace adapter</div>
       </div>
     </div>
   </section>
