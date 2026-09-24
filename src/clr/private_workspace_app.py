@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import html
 import ipaddress
+import re
 import json
-import mimetypes
-import os
 from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -23,6 +22,14 @@ from .private_workspace_auth import (
 
 SESSION_COOKIE = "clr_workspace_session"
 MAX_FORM_BYTES = 64 * 1024
+_SAFE_PART = re.compile(r"[^A-Za-z0-9._=-]+")
+
+
+def _safe_part(value: Any) -> str:
+    text = str(value).strip()
+    if not text:
+        raise ValueError("Empty path component")
+    return _SAFE_PART.sub("_", text)
 
 
 def _private_root(root: str | Path) -> Path:
@@ -173,7 +180,7 @@ def workspace_catalog(root: str | Path, tenant_key: str) -> dict[str, Any]:
 
 def list_private_reports(root: str | Path, tenant_key: str) -> list[dict[str, Any]]:
     root = _private_root(root)
-    base = root / "outputs" / "reports" / str(tenant_key)
+    base = root / "outputs" / "reports" / _safe_part(tenant_key)
     if not base.exists():
         return []
     out = []
@@ -222,7 +229,7 @@ def _safe_output_file(
     suffixes: tuple[str, ...],
 ) -> Path:
     root = _private_root(root)
-    base = (root / "outputs" / "reports" / str(tenant_key)).resolve()
+    base = (root / "outputs" / "reports" / _safe_part(tenant_key)).resolve()
     target = (root / relative_path).resolve()
     try:
         target.relative_to(base)
