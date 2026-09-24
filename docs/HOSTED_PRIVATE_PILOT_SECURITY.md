@@ -69,6 +69,22 @@ The pilot login path now applies multiple controls before an expensive password 
 - failed-login audit records store a username hash rather than the supplied raw username;
 - audit detail fields are length- and item-bounded before they reach SQLite.
 
+The shipped pilot uses a conservative global ceiling of **20 expensive password checks per 60 seconds per process**. The per-account bucket remains separate. Tenant spellings are normalised for rate-limit purposes so case/whitespace variants cannot create fresh per-account buckets, and malformed tenant strings share one invalid-tenant bucket.
+
+The value 20 is a pre-host default, not a universal constant. PBKDF2 cost is hardware-dependent. Before inviting outside users, benchmark the deployed host:
+
+```bash
+python scripts/benchmark_private_pilot_auth.py --vcpus 2 --target-cpu-share 0.10
+```
+
+or:
+
+```bash
+make -f Makefile.local private-pilot-auth-benchmark VCPUS=2 TARGET_CPU_SHARE=0.10
+```
+
+Then set `CLR_LOGIN_GLOBAL_ATTEMPTS` to a value no higher than the measured recommendation and rerun the benchmark under representative host load.
+
 The in-process limiter is appropriate for the current single-process private pilot. It is not a substitute for reverse-proxy or infrastructure-level rate limiting on a future multi-process deployment.
 
 Unknown, invalid and inactive accounts perform dummy PBKDF2 work so they do not return immediately while known accounts perform password hashing.
@@ -292,6 +308,9 @@ The pilot selector continues to exclude:
 - source raster paths.
 
 Only the authenticated tenant's selector/report paths are available.
+
+
+Decision-report generation also caps explicit indicator-run selection at **64 runs per request**. The cap is enforced in the governed adapter as well as the HTTP layer, so a bounded form body cannot fan out into thousands of processing-run lookups.
 
 ## Error handling
 
