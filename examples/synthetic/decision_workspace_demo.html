@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Synthetic Decision &amp; Portfolio Report</title>
+<style>
+:root{--ink:#18221b;--muted:#667068;--line:#dce2dd;--green:#173f2b;--soft:#f3f6f3}
+*{box-sizing:border-box}body{margin:0;background:#f5f6f4;color:var(--ink);font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;line-height:1.48}
+.shell{max-width:1120px;margin:0 auto;padding:30px 24px 54px}header{background:var(--green);color:#fff}header .shell{padding-top:28px;padding-bottom:28px}
+.eyebrow{font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:750;color:#dbe8df}h1{font-size:38px;line-height:1.08;margin:7px 0 9px;letter-spacing:-.03em}header p{margin:0;color:rgba(255,255,255,.78)}
+.pill{display:inline-block;margin-top:15px;border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:6px 10px;font-size:11px}
+.toolbar{display:flex;justify-content:flex-end;margin-bottom:16px}.toolbar button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer}
+section{margin-top:20px;background:#fff;border:1px solid var(--line);border-radius:13px;padding:19px;break-inside:avoid}h2{font-size:21px;margin:0 0 5px}.note,.meta{font-size:12px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:11px;margin-top:12px}.card{border:1px solid var(--line);border-radius:10px;padding:13px}.card b{display:block;margin-bottom:5px}.card p{font-size:13px;margin:0;color:#465049}.guard{font-size:11px;color:var(--muted);border-top:1px solid #edf0ed;padding-top:7px;margin-top:8px}
+table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}th,td{padding:9px 7px;border-bottom:1px solid #edf0ed;text-align:left;vertical-align:top}th{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.null{color:#7b581d}.guardrails{background:#fffaf0}.guardrails li+li{margin-top:5px}footer{font-size:11px;color:var(--muted);margin-top:20px}
+@media(max-width:650px){.shell{padding-left:14px;padding-right:14px}h1{font-size:30px}.grid{grid-template-columns:1fr}section{padding:14px}}
+@media print{@page{size:A4;margin:14mm}body{background:white}header{background:white;color:var(--ink);border-bottom:2px solid var(--green)}header .eyebrow,header p{color:var(--muted)}.shell{max-width:none;padding:0}.no-print{display:none!important}section{border:0;border-top:1px solid var(--line);border-radius:0;padding:13px 0;margin-top:9px}}
+</style>
+</head>
+<body>
+<header><div class="shell">
+<div class="eyebrow">Bangladesh Climate &amp; Location Risk Intelligence · Mangrove Intelligence</div>
+<h1>Synthetic Decision &amp; Portfolio Report</h1>
+<p>PORTFOLIO · SYNTH_PORTFOLIO_01 · Tenant scope: SYNTHETIC_PUBLIC</p>
+<span class="pill">Synthetic public demonstration</span>
+</div></header>
+<main class="shell">
+<div class="toolbar no-print"><button onclick="window.print()">Print / Save as PDF</button></div>
+
+<section><h2>Executive evidence summary</h2><div class="note">Descriptive evidence statements only. No overall climate-risk score.</div>
+<div class="grid">
+<div class="card"><b>Direct evidence</b><p>The synthetic factory has heat, modelled flood, rainfall, terrain, population and surface-water context with source and vintage fields preserved.</p><div class="guard">The evidence dimensions remain separate and are not combined into a score.</div></div>
+<div class="card"><b>Compound evidence</b><p>Same-month heat–drought co-occurrence and site-plus-route flood exposure are present in the synthetic evidence.</p><div class="guard">Co-occurrence and route exposure do not establish loss, causality or closure.</div></div>
+<div class="card"><b>Cross-asset dependence</b><p>One synthetic flood-exposed road edge is shared by three distinct assets.</p><div class="guard">Shared dependence is concentration evidence, not a disruption probability.</div></div>
+<div class="card"><b>Missing information</b><p>Collateral value, insurance terms and operating-resilience data remain incomplete.</p><div class="guard">No PD, LGD, expected loss or insurance loss is inferred.</div></div>
+</div></section>
+
+<section><h2>Asset and data readiness</h2>
+<table><tbody>
+<tr><th>Site identity grade</th><td>EXACT_SITE</td></tr>
+<tr><th>Coordinate status</th><td>RESOLVED</td></tr>
+<tr><th>Direct evidence rows</th><td>7</td></tr>
+<tr><th>Compound period</th><td>2025 · RP100</td></tr>
+<tr><th>Public demo status</th><td>SYNTHETIC_ONLY</td></tr>
+</tbody></table></section>
+
+<section><h2>Direct physical evidence</h2><div class="note">Source, vintage, measurement basis, value class and quality remain visible.</div>
+<table><thead><tr><th>Evidence</th><th>Value</th><th>Class / basis</th><th>Source / vintage</th><th>Quality</th></tr></thead><tbody>
+<tr><td>Days above 35°C</td><td>24 days</td><td>CALCULATED<br><span class="meta">from reanalysis</span></td><td>ERA5_LAND_DAILY<br><span class="meta">SYNTH_2025</span></td><td>OK</td></tr>
+<tr><td>RP100 modelled river-flood depth</td><td>0.6 m</td><td>SOURCE<br><span class="meta">hydrological/hydrodynamic model</span></td><td>JRC_CEMS_RP100<br><span class="meta">SYNTH_VINTAGE</span></td><td>OK</td></tr>
+<tr><td>Maximum five-day rainfall</td><td>162 mm</td><td>CALCULATED<br><span class="meta">blended rainfall</span></td><td>CHIRPS_V3<br><span class="meta">SYNTH_2025</span></td><td>OK</td></tr>
+<tr><td>DSM elevation relative to 500 m median</td><td>−1.8 m</td><td>CALCULATED<br><span class="meta">DSM context</span></td><td>COPERNICUS_DEM_GLO30</td><td>OK</td></tr>
+<tr><td>Modeled residential population within 5 km</td><td>86,000 people</td><td>SOURCE<br><span class="meta">modeled residential population</span></td><td>WORLDPOP_GLOBAL2<br><span class="meta">SYNTH_2025</span></td><td>OK</td></tr>
+<tr><td>Distance to ≥90% long-run surface water</td><td>420 m</td><td>CALCULATED<br><span class="meta">long-run water occurrence</span></td><td>JRC_GSW_V1_5</td><td>OK</td></tr>
+<tr><td>Observed flood detection at exact site</td><td><span class="null">Not available — no valid synthetic event coverage</span></td><td>SOURCE<br><span class="meta">satellite-observed event</span></td><td>COPERNICUS_GFM<br><span class="meta">SYNTH_EVENT</span></td><td>NO_VALID_EVENT_COVERAGE</td></tr>
+</tbody></table></section>
+
+<section><h2>Second-order exposure</h2><div class="grid">
+<div class="card"><b>Worker heat exposure</b><p>1,500 workers × 24 extreme-heat days = 36,000 worker-heat exposure days.</p><div class="guard">Exposure arithmetic only; not estimated lost workdays, productivity loss or health outcomes.</div></div>
+</div></section>
+
+<section><h2>Compound evidence</h2><div class="grid">
+<div class="card"><b>SITE_AND_ROUTE_EXPOSED</b><p>Two synthetic months contain heat above the governed threshold in the same month as SPI-3 ≤ −1.</p><div class="guard">Same-month co-occurrence and site-route exposure do not establish economic loss.</div></div>
+</div></section>
+
+<section><h2>Operational transmission</h2><div class="grid">
+<div class="card"><b>Floor/equipment elevation</b><p>The site is in the modelled RP100 footprint, but finished-floor and equipment elevation are not supplied.</p><div class="guard">Point depth does not by itself establish floor inundation, damage or downtime.</div></div>
+<div class="card"><b>Cooling and backup power</b><p>Cooling capacity and backup power are not supplied, so heat exposure is not translated into production interruption.</p><div class="guard">No downtime estimate is produced without operational evidence.</div></div>
+</div></section>
+
+<section><h2>Logistics dependencies</h2><div class="grid">
+<div class="card"><b>ROUTE_EXPOSED</b><p>A synthetic primary-road dependency intersects positive modelled RP100 depth.</p><div class="guard">Route exposure does not establish road closure, impassability or delivery delay.</div></div>
+</div></section>
+
+<section><h2>Cross-asset and portfolio evidence</h2>
+<table><thead><tr><th>Metric</th><th>Value</th><th>Denominator</th><th>Quality</th></tr></thead><tbody>
+<tr><td>asset_share_with_heat_spi3_cooccurrence</td><td>0.5 share</td><td>4</td><td>OK</td></tr>
+<tr><td>rp100_asset_share_site_and_route_exposed</td><td>0.5 share</td><td>4</td><td>OK</td></tr>
+<tr><td>shared_flood_exposed_edge_count</td><td>2 edges</td><td>Not applicable</td><td>OK</td></tr>
+</tbody></table>
+<table><thead><tr><th>Shared edge</th><th>Distinct assets</th><th>Dependencies</th><th>Max modelled depth</th></tr></thead><tbody>
+<tr><td>SYNTH_EDGE_01</td><td>3</td><td>4</td><td>0.8 m</td></tr>
+</tbody></table>
+<table><thead><tr><th>Portfolio metric</th><th>Value</th><th>Classification</th><th>Quality</th></tr></thead><tbody>
+<tr><td>ead_share_in_rp100_footprint</td><td>0.25 share</td><td>BANK_CONCENTRATION</td><td>OK</td></tr>
+<tr><td>ead_in_rp100_footprint</td><td>125,000,000 BDT</td><td>BANK_EXPOSURE_ARITHMETIC</td><td>OK</td></tr>
+</tbody></table></section>
+
+<section><h2>What data would change the answer?</h2><div class="grid">
+<div class="card"><b>Exact route and port dependency by shipment type</b><p>Separates generic route exposure from business-critical logistics dependence.</p></div>
+<div class="card"><b>Finished-floor and critical-equipment elevation</b><p>Needed before translating modelled flood hazard into equipment exposure.</p></div>
+<div class="card"><b>Workforce by shift and operating hours</b><p>Needed to refine worker exposure arithmetic.</p></div>
+<div class="card"><b>Cooling and backup-power capacity</b><p>Needed before evaluating operational heat resilience.</p></div>
+<div class="card"><b>Facility water source and use</b><p>Needed before interpreting drought or water-stress context operationally.</p></div>
+<div class="card"><b>Collateral value, insurance coverage and sum insured</b><p>Needed for separately governed financial or insurance analysis.</p></div>
+</div></section>
+
+<section><h2>Evidence provenance</h2><p class="note">Source modules: ASSET_INTELLIGENCE 0.1.0 · COMPOUND_CROSS_ASSET_INTELLIGENCE 0.1.0 · PORTFOLIO_INTELLIGENCE 0.1.0</p>
+<div class="grid"><div class="card"><b>Input manifests retained</b><p>ERA5-Land, CHIRPS v3, JRC RP100 and OSM synthetic fixture references remain attached to the structured report.</p></div></div></section>
+
+<section class="guardrails"><h2>Guardrails</h2><ul>
+<li>No overall or composite climate-risk score is calculated.</li>
+<li>Hazard and exposure evidence are not automatically converted into damage, downtime, PD, LGD, expected loss or insurance loss.</li>
+<li>Observed, modelled, reanalysis and calculated quantities remain separately labelled.</li>
+<li>Route hazard exposure does not establish road closure or impassability.</li>
+<li>Population context is not factory workforce, and built-up context is not property value.</li>
+<li>Compound evidence is not a weighted index or causal economic multiplier.</li>
+<li>Portfolio concentration is not expected loss.</li>
+</ul></section>
+
+<footer>Generated demonstration of the DECISION_PORTFOLIO_WORKSPACE presentation contract. All names and values on this page are synthetic.</footer>
+</main>
+</body>
+</html>
