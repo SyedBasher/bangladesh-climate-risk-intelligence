@@ -11,9 +11,15 @@ REQUIRED_INDICATOR_FIELDS = {
 def _optional_nonnegative_int(value: Any, name: str) -> int | None:
     if value is None:
         return None
-    if isinstance(value, float) and math.isnan(value):
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be an integer") from exc
+    if math.isnan(numeric):
         return None
-    out = int(value)
+    if not math.isfinite(numeric) or numeric != int(numeric):
+        raise ValueError(f"{name} must be an integer")
+    out = int(numeric)
     if out < 0:
         raise ValueError(f"{name} cannot be negative")
     return out
