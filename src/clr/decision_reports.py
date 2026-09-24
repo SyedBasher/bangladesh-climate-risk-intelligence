@@ -130,7 +130,19 @@ def _validate_portfolio_metrics(
             raise ValueError(
                 "Expected-loss/PD/LGD outputs require a separately governed model"
             )
-        out.append(dict(row))
+        cleaned = dict(row)
+        denominator = row.get("denominator_count")
+        if denominator is not None:
+            try:
+                denominator = int(denominator)
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise ValueError("denominator_count must be an integer") from exc
+            if denominator < 0:
+                raise ValueError("denominator_count cannot be negative")
+            cleaned["denominator_count"] = denominator
+        if str(row.get("unit", "")).lower() == "share" and denominator is None:
+            raise ValueError("Portfolio share metrics require denominator_count")
+        out.append(cleaned)
     return out
 
 
