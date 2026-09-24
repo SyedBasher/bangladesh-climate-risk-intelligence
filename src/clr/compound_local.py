@@ -145,12 +145,19 @@ def heat_drought_monthly(
         index=["tenant_key","asset_location_id","external_id","period"],
         columns="indicator_id",values="value"
     ).reset_index()
+    for scale in ("spi3","spi12"):
+        if scale not in value_pivot.columns:
+            value_pivot[scale]=pd.NA
     quality_pivot=spi.pivot(
         index=["tenant_key","asset_location_id","external_id","period"],
         columns="indicator_id",values="quality_flag"
     ).reset_index().rename(columns={
         "spi3":"spi3_quality_flag","spi12":"spi12_quality_flag"
     })
+    for scale in ("spi3","spi12"):
+        q=f"{scale}_quality_flag"
+        if q not in quality_pivot.columns:
+            quality_pivot[q]="MISSING_SPI_MONTH"
     joined=value_pivot.merge(
         quality_pivot,
         on=["tenant_key","asset_location_id","external_id","period"],
@@ -639,6 +646,7 @@ def run_indicator_source_ids(
     *,
     run_id:str|None,
     indicator_ids:list[str],
+    tenant_key:str|None=None,
 )->set[str]:
     if run_id is None or not indicator_ids:
         return set()
@@ -651,9 +659,13 @@ def run_indicator_source_ids(
         WHERE ai.run_id=?
           AND ai.indicator_id IN ({marks})
     """
+    params=[run_id,*indicator_ids]
+    if tenant_key is not None:
+        sql+=" AND ai.tenant_key=?"
+        params.append(tenant_key)
     with connect_catalog(root) as conn:
         rows=conn.execute(
-            sql,(run_id,*indicator_ids)
+            sql,tuple(params)
         ).fetchall()
     return {str(x["source_artifact_id"]) for x in rows}
 
@@ -839,7 +851,8 @@ def insert_cross_asset_summary(
         heat_sources=set()
 
     drought_sources=run_indicator_source_ids(
-        root,run_id=spi_meta.get("run_id"),indicator_ids=["spi3","spi12"]
+        root,run_id=spi_meta.get("run_id"),
+        indicator_ids=["spi3","spi12"],tenant_key=tenant_key
     )
     route_roles=_route_run_source_roles(
         root,str(route_meta.get("run_id"))
