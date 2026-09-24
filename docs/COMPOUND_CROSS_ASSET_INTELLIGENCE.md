@@ -28,7 +28,7 @@ For each asset/month the workflow keeps:
 ### Co-occurrence definition
 
 A heat–SPI-3 co-occurrence month requires:
-- complete daily-maximum coverage for the month;
+- complete valid daily-maximum temperature coverage for the month;
 - valid SPI-3;
 - at least one day with Tmax >35°C;
 - SPI-3 <= -1.
@@ -45,7 +45,7 @@ The annual outputs are:
 - compound_heat_drought_spi12_cooccurrence_month_count
 - compound_heat_days_gt35_during_spi12_le_minus1_months
 
-If any month required for a scale is incomplete, the corresponding annual metric is null rather than extrapolated.
+If any month required for a scale is incomplete, including a calendar day whose temperature value is missing, the corresponding annual metric is null rather than extrapolated.
 
 ## 2. What heat–drought co-occurrence does not mean
 
@@ -110,6 +110,13 @@ For every shared edge the private detail table retains:
 - pseudonymous asset keys.
 
 This is dependency concentration, not expected disruption or economic loss.
+
+An empty shared-edge result has two distinct meanings and they are not collapsed:
+
+- when tenant route-edge evidence exists and no qualifying shared exposed edge is found, the governed count is zero with quality `OK`;
+- when no tenant route-edge evidence is available, shared-bottleneck metrics are null with quality `NO_ROUTE_EDGE_EVIDENCE`.
+
+Missing route-edge evidence is therefore not treated as zero shared exposure.
 
 ## 5. Cross-asset summaries
 
@@ -176,6 +183,8 @@ Cross-asset metrics retain raw source-artifact lineage plus an input manifest co
 - producing run ID.
 
 The detailed compound joins remain private Parquet.
+
+Heat/drought cross-asset metrics fail closed when required heat or drought source lineage cannot be read or resolved. Provenance-read errors are not converted into empty source lists.
 
 ## 10. Private workflow
 

@@ -4,6 +4,7 @@ import calendar
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from clr.compound_local import (
     _insert_cross_metric,
@@ -11,6 +12,7 @@ from clr.compound_local import (
     flood_route_asset_state,
     heat_drought_annual,
     heat_drought_monthly,
+    insert_cross_asset_summary,
     shared_flood_exposed_edges,
 )
 from clr.local_store import (
@@ -219,3 +221,115 @@ def test_cross_asset_metric_schema_and_source_lineage(tmp_path):
     assert '"denominator": 4' in row["input_manifest_json"]
     assert len(lineage)==1
     assert lineage[0]["source_role"]=="HEAT_SOURCE"
+
+
+def test_missing_temperature_value_makes_month_incomplete():
+    daily=_daily_heat()
+    mask=daily["date"]=="2025-03-15"
+    daily.loc[mask,"temp_c"]=float("nan")
+    monthly=heat_drought_monthly(daily,_spi(),year=2025)
+    march=monthly[monthly["period"]=="2025-03"].iloc[0]
+    assert march["heat_day_count"]==30
+    assert march["expected_day_count"]==31
+    assert march["heat_quality_flag"]=="INCOMPLETE_HEAT_MONTH"
+
+    annual=heat_drought_annual(monthly,year=2025)
+    assert set(annual["quality_flag"])=={"INCOMPLETE_YEAR_INPUT"}
+    assert annual["value"].isna().all()
+
+
+def test_shared_bottleneck_distinguishes_valid_zero_from_missing_edge_evidence():
+    empty_edges=pd.DataFrame()
+    valid_zero=cross_asset_summary(
+        pd.DataFrame(),
+        pd.DataFrame(),
+        empty_edges,
+        year=2025,
+        return_period=100,
+        shared_edge_evidence_available=True,
+    )
+    valid_rows=valid_zero[
+        valid_zero["analysis_type"]=="SHARED_BOTTLENECK"
+    ]
+    assert set(valid_rows["quality_flag"])=={"OK"}
+    assert (valid_rows["value"]==0).all()
+
+    unavailable=cross_asset_summary(
+        pd.DataFrame(),
+        pd.DataFrame(),
+        empty_edges,
+        year=2025,
+        return_period=100,
+        shared_edge_evidence_available=False,
+    )
+    unavailable_rows=unavailable[
+        unavailable["analysis_type"]=="SHARED_BOTTLENECK"
+    ]
+    assert set(unavailable_rows["quality_flag"])=={"NO_ROUTE_EDGE_EVIDENCE"}
+    assert unavailable_rows["value"].isna().all()
+
+
+def test_cross_asset_metric_nan_denominator_is_omitted_not_converted(tmp_path):
+    root=tmp_path/"private_data"
+    initialize_workspace(root,schema_path())
+    run_id=start_processing_run(
+        root,pipeline_name="compound_test",pipeline_version="0.1"
+    )
+    metric_id=_insert_cross_metric(
+        root,
+        tenant_key="INTERNAL",
+        analysis_type="SHARED_BOTTLENECK",
+        metric_id="rp100_shared_flood_exposed_edge_count",
+        value=0,
+        unit="edges",
+        period_start=None,
+        period_end=None,
+        method_version="TEST",
+        quality_flag="OK",
+        input_manifest={"inputs":[]},
+        run_id=run_id,
+        source_roles={},
+        denominator=float("nan"),
+    )
+    with connect_catalog(root) as conn:
+        row=conn.execute(
+            "SELECT input_manifest_json FROM cross_asset_metric WHERE cross_asset_metric_id=?",
+            (metric_id,),
+        ).fetchone()
+    assert '"denominator"' not in row["input_manifest_json"]
+
+
+def test_heat_lineage_read_failure_propagates(tmp_path,monkeypatch):
+    root=tmp_path/"private_data"
+    initialize_workspace(root,schema_path())
+    summary=pd.DataFrame([
+        {
+            "analysis_type":"HEAT_DROUGHT",
+            "metric_id":"asset_share_with_heat_spi3_cooccurrence",
+            "value":0.5,
+            "unit":"share",
+            "denominator":2,
+            "quality_flag":"OK",
+            "period_start":"2025-01-01",
+            "period_end":"2025-12-31",
+        }
+    ])
+
+    def broken_latest(*args,**kwargs):
+        raise OSError("synthetic heat lineage read failure")
+
+    monkeypatch.setattr("clr.compound_local.latest_parquet",broken_latest)
+    with pytest.raises(OSError,match="synthetic heat lineage read failure"):
+        insert_cross_asset_summary(
+            root,
+            summary,
+            tenant_key="INTERNAL",
+            heat_meta={"run_id":"HEAT_RUN","dataset_name":"era5_land_daily_temperature","parquet_dataset_id":"H","relative_path":"x","sha256":"a","partition_spec":{}},
+            spi_meta={"run_id":"SPI_RUN","dataset_name":"chirps_spi_monthly","parquet_dataset_id":"S","relative_path":"y","sha256":"b","partition_spec":{}},
+            route_meta={"run_id":"ROUTE_RUN","dataset_name":"osm_route_flood_summary","parquet_dataset_id":"R","relative_path":"z","sha256":"c","partition_spec":{}},
+            route_edge_meta={"run_id":"ROUTE_RUN","dataset_name":"osm_route_flood_edge_exposure","parquet_dataset_id":"E","relative_path":"e","sha256":"d","partition_spec":{}},
+            site_depths=pd.DataFrame(),
+            year=2025,
+            return_period=100,
+            run_id="COMPOUND_RUN",
+        )

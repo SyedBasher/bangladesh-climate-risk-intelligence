@@ -43,6 +43,8 @@ def test_html_renderer_is_presentation_only_and_printable():
     assert "what data would change the answer?" in lower
     assert "not available" in lower
     assert "no overall climate-risk score" in lower
+    assert html.count("<th>Denominator</th>") >= 2
+    assert report["cross_asset_portfolio"]["portfolio_metrics"][0]["denominator_count"] == 4
     assert "risk_score" not in lower
     assert "composite_score" not in lower
 

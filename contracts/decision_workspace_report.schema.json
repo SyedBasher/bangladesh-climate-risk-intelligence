@@ -20,15 +20,34 @@
     "guardrails"
   ],
   "properties": {
-    "report_type": {"const": "DECISION_PORTFOLIO_WORKSPACE"},
-    "schema_version": {"type": "string"},
+    "report_type": {
+      "const": "DECISION_PORTFOLIO_WORKSPACE"
+    },
+    "schema_version": {
+      "type": "string"
+    },
     "scope": {
       "type": "object",
-      "required": ["scope_type", "tenant_scope", "subject_id"],
+      "required": [
+        "scope_type",
+        "tenant_scope",
+        "subject_id"
+      ],
       "properties": {
-        "scope_type": {"enum": ["ASSET", "PORTFOLIO"]},
-        "tenant_scope": {"type": "string", "minLength": 1},
-        "subject_id": {"type": "string", "minLength": 1}
+        "scope_type": {
+          "enum": [
+            "ASSET",
+            "PORTFOLIO"
+          ]
+        },
+        "tenant_scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_id": {
+          "type": "string",
+          "minLength": 1
+        }
       },
       "additionalProperties": false
     },
@@ -36,20 +55,51 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["statement_id", "text", "evidence_class", "source_refs", "guardrail"],
+        "required": [
+          "statement_id",
+          "text",
+          "evidence_class",
+          "source_refs",
+          "guardrail"
+        ],
         "properties": {
-          "statement_id": {"type": "string", "minLength": 1},
-          "text": {"type": "string", "minLength": 1},
-          "evidence_class": {
-            "enum": ["DIRECT", "CALCULATED", "COMPOUND", "OPERATIONAL", "CROSS_ASSET", "MISSING_DATA"]
+          "statement_id": {
+            "type": "string",
+            "minLength": 1
           },
-          "source_refs": {"type": "array", "items": {"type": "string"}},
-          "guardrail": {"type": ["string", "null"]}
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence_class": {
+            "enum": [
+              "DIRECT",
+              "CALCULATED",
+              "COMPOUND",
+              "OPERATIONAL",
+              "CROSS_ASSET",
+              "MISSING_DATA"
+            ]
+          },
+          "source_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "guardrail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
         },
         "additionalProperties": false
       }
     },
-    "data_readiness": {"type": "object"},
+    "data_readiness": {
+      "type": "object"
+    },
     "direct_physical_evidence": {
       "type": "array",
       "items": {
@@ -63,48 +113,315 @@
           "quality_flag"
         ],
         "properties": {
-          "indicator_id": {"type": "string"},
-          "label": {"type": "string"},
-          "value": {"type": ["number", "string", "boolean", "null"]},
-          "unit": {"type": ["string", "null"]},
-          "value_class": {"type": "string"},
-          "measurement_basis": {"type": "string"},
-          "source_id": {"type": "string"},
-          "source_vintage": {"type": "string"},
-          "quality_flag": {"type": "string"},
-          "null_reason": {"type": ["string", "null"]},
-          "period_start": {"type": ["string", "null"]},
-          "period_end": {"type": ["string", "null"]},
-          "method_version": {"type": ["string", "null"]}
+          "indicator_id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "number",
+              "string",
+              "boolean",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "value_class": {
+            "type": "string"
+          },
+          "measurement_basis": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "source_vintage": {
+            "type": "string"
+          },
+          "quality_flag": {
+            "type": "string"
+          },
+          "null_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "period_start": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "period_end": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "method_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
         },
         "additionalProperties": true
       }
     },
-    "second_order_exposure": {"type": "array", "items": {"type": "object"}},
-    "compound_evidence": {"type": "array", "items": {"type": "object"}},
-    "operational_transmission": {"type": "array", "items": {"type": "object"}},
-    "logistics_dependencies": {"type": "array", "items": {"type": "object"}},
+    "second_order_exposure": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "compound_evidence": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "operational_transmission": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "logistics_dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
     "cross_asset_portfolio": {
       "type": "object",
-      "required": ["cross_asset_metrics", "shared_bottlenecks", "portfolio_metrics"],
+      "required": [
+        "cross_asset_metrics",
+        "shared_bottlenecks",
+        "portfolio_metrics"
+      ],
       "properties": {
-        "cross_asset_metrics": {"type": "array", "items": {"type": "object"}},
-        "shared_bottlenecks": {"type": "array", "items": {"type": "object"}},
-        "portfolio_metrics": {"type": "array", "items": {"type": "object"}}
+        "cross_asset_metrics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "metric_id",
+              "value"
+            ],
+            "properties": {
+              "analysis_type": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "metric_id": {
+                "type": "string"
+              },
+              "value": {
+                "type": [
+                  "number",
+                  "string",
+                  "boolean",
+                  "null"
+                ]
+              },
+              "unit": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "denominator": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "quality_flag": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "period_start": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "period_end": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "unit": {
+                      "const": "share"
+                    }
+                  },
+                  "required": [
+                    "unit"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "denominator"
+                  ],
+                  "properties": {
+                    "denominator": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            ],
+            "additionalProperties": true
+          }
+        },
+        "shared_bottlenecks": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "portfolio_metrics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "metric_id",
+              "value"
+            ],
+            "properties": {
+              "metric_id": {
+                "type": "string"
+              },
+              "value": {
+                "type": [
+                  "number",
+                  "string",
+                  "boolean",
+                  "null"
+                ]
+              },
+              "unit": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "denominator_count": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "classification": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "source_vintage": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "quality_flag": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "unit": {
+                      "const": "share"
+                    }
+                  },
+                  "required": [
+                    "unit"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "denominator_count"
+                  ],
+                  "properties": {
+                    "denominator_count": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            ],
+            "additionalProperties": true
+          }
+        }
       },
       "additionalProperties": false
     },
-    "evidence_provenance": {"type": "array", "items": {"type": "object"}},
+    "evidence_provenance": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
     "what_data_would_change_the_answer": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["data_item", "why_it_matters", "decision_question", "source_module"],
+        "required": [
+          "data_item",
+          "why_it_matters",
+          "decision_question",
+          "source_module"
+        ],
         "properties": {
-          "data_item": {"type": "string", "minLength": 1},
-          "why_it_matters": {"type": ["string", "null"]},
-          "decision_question": {"type": ["string", "null"]},
-          "source_module": {"type": ["string", "null"]}
+          "data_item": {
+            "type": "string",
+            "minLength": 1
+          },
+          "why_it_matters": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decision_question": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_module": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
         },
         "additionalProperties": false
       }
@@ -113,15 +430,30 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["report_type", "schema_version"],
+        "required": [
+          "report_type",
+          "schema_version"
+        ],
         "properties": {
-          "report_type": {"type": "string"},
-          "schema_version": {"type": ["string", "null"]}
+          "report_type": {
+            "type": "string"
+          },
+          "schema_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
         },
         "additionalProperties": false
       }
     },
-    "guardrails": {"type": "array", "items": {"type": "string"}}
+    "guardrails": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
   },
   "additionalProperties": false
 }

@@ -196,6 +196,7 @@ def render_decision_workspace_html(
         [
             ("metric_id", "Metric"),
             ("value", "Value"),
+            ("denominator_count", "Denominator"),
             ("classification", "Classification"),
             ("quality_flag", "Quality"),
         ],

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Any
 
 ALLOWED_SCOPE_TYPES = {"ASSET", "PORTFOLIO"}
@@ -21,6 +22,23 @@ def _require_nonempty(value: Any, name: str) -> str:
     if not text:
         raise ValueError(f"{name} must be non-empty")
     return text
+
+
+def _optional_nonnegative_int(value: Any, name: str) -> int | None:
+    if value is None:
+        return None
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be an integer") from exc
+    if math.isnan(numeric):
+        return None
+    if not math.isfinite(numeric) or numeric != int(numeric):
+        raise ValueError(f"{name} must be an integer")
+    out = int(numeric)
+    if out < 0:
+        raise ValueError(f"{name} cannot be negative")
+    return out
 
 
 def _dedupe_strings(values: list[str]) -> list[str]:
@@ -109,12 +127,16 @@ def _validate_compound_metrics(
         quality = row.get("quality_flag", "OK")
         if row.get("value") is None and quality == "OK":
             raise ValueError("Null cross-asset metric requires non-OK quality_flag")
-        denominator = row.get("denominator")
-        if denominator is not None and int(denominator) < 0:
-            raise ValueError("denominator cannot be negative")
+        denominator = _optional_nonnegative_int(
+            row.get("denominator"),
+            "denominator",
+        )
         if str(row.get("unit", "")).lower() == "share" and denominator is None:
             raise ValueError("Share metrics require an explicit denominator")
-        out.append(dict(row))
+        cleaned = dict(row)
+        if denominator is not None:
+            cleaned["denominator"] = denominator
+        out.append(cleaned)
     return out
 
 
@@ -130,7 +152,16 @@ def _validate_portfolio_metrics(
             raise ValueError(
                 "Expected-loss/PD/LGD outputs require a separately governed model"
             )
-        out.append(dict(row))
+        cleaned = dict(row)
+        denominator = _optional_nonnegative_int(
+            row.get("denominator_count"),
+            "denominator_count",
+        )
+        if denominator is not None:
+            cleaned["denominator_count"] = denominator
+        if str(row.get("unit", "")).lower() == "share" and denominator is None:
+            raise ValueError("Portfolio share metrics require denominator_count")
+        out.append(cleaned)
     return out
 
 
