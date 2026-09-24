@@ -134,6 +134,21 @@ A hosted pilot needs:
 
 A catalog restore without the corresponding audit-chain key prevents verification of the historical audit chain.
 
+## Automated rehearsal before host exposure
+
+Before configuring a real host, run:
+
+```bash
+python scripts/rehearse_private_pilot_deployment.py
+```
+
+The command performs a fail-closed preflight and non-destructive SQLite backup/restore rehearsal, including audit-chain verification.
+
+See:
+
+- `docs/PRIVATE_PILOT_DEPLOYMENT_REHEARSAL.md`
+- `docs/EXTERNAL_SECURITY_REVIEW.md`
+
 ## Before a wider production launch
 
 The pilot deliberately stops short of a full production identity platform. Before broader external use, add or validate:

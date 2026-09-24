@@ -60,6 +60,9 @@ See:
 - `docs/PRIVATE_DECISION_WORKSPACE.md`
 - `docs/PRIVATE_WORKSPACE_APP.md`
 - `docs/HOSTED_PRIVATE_PILOT_SECURITY.md`
+- `docs/PRIVATE_PILOT_DEPLOYMENT_REHEARSAL.md`
+- `docs/EXTERNAL_SECURITY_REVIEW.md`
+- `docs/EXTERNAL_SECURITY_REVIEW_PROMPT.md`
 - `deploy/private_pilot/README.md`
 
 ## Core design principles
@@ -101,6 +104,7 @@ See:
 - `src/clr/private_workspace_app.py` — localhost-only authenticated Decision Workspace shell
 - `src/clr/private_workspace_access.py` — named users, tenant roles, revocable opaque sessions, and tamper-evident audit chain
 - `src/clr/private_workspace_pilot_app.py` — loopback-only named-user backend intended to sit behind a TLS reverse proxy
+- `src/clr/private_pilot_rehearsal.py` — non-destructive pilot preflight, catalog backup/restore, audit verification, and deployment-example checks
 - `src/clr/synthetic_decision_demo.py` — reproducible synthetic public workspace fixture
 - `src/clr/intelligence.py` — transparent second-/third-order exposure logic
 - `src/clr/portfolio.py` — bank/insurer portfolio accumulation and concentration
