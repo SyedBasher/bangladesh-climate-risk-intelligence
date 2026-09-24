@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -269,3 +270,26 @@ def test_invalid_username_tenant_and_role_fail_closed(tmp_path):
             tenant_key="TENANT_A",
             role="SUPERUSER",
         )
+
+
+def test_concurrent_audit_appends_remain_one_valid_chain(tmp_path):
+    root = _workspace(tmp_path)
+
+    def append_event(index):
+        return record_audit_event(
+            root,
+            actor_user_id=None,
+            tenant_key="TENANT_A",
+            action="CONCURRENT_TEST",
+            outcome="SUCCESS",
+            target_type="TEST",
+            target_id=str(index),
+        )
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        results = list(pool.map(append_event, range(18)))
+
+    assert len({x["event_hash"] for x in results}) == 18
+    chain = verify_audit_chain(root)
+    assert chain["valid"]
+    assert chain["checked_events"] == 18
