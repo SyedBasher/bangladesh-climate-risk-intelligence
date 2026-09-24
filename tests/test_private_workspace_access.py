@@ -2,6 +2,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import json
+
 import sqlite3
 import pytest
 
@@ -447,3 +449,52 @@ def test_session_touch_is_infrequent_and_lock_failure_is_best_effort(tmp_path):
     finally:
         locker.rollback()
         locker.close()
+
+
+def test_audit_tail_truncation_is_detected_by_external_anchor(tmp_path):
+    root = _workspace(tmp_path)
+    for index in range(4):
+        record_audit_event(
+            root,
+            actor_user_id=None,
+            tenant_key="TENANT_A",
+            action="TAIL_TEST",
+            outcome="SUCCESS",
+            target_type="TEST",
+            target_id=str(index),
+        )
+    baseline = verify_audit_chain(root)
+    assert baseline["valid"]
+    assert baseline["checked_events"] == 4
+    assert baseline["anchor_event_count"] == 4
+
+    with connect_catalog(root) as conn:
+        conn.execute(
+            "DELETE FROM workspace_audit_event WHERE audit_event_id=(SELECT max(audit_event_id) FROM workspace_audit_event)"
+        )
+        conn.commit()
+
+    result = verify_audit_chain(root)
+    assert not result["valid"]
+    assert result["reason"] == "EVENT_COUNT_MISMATCH"
+    assert result["anchor_event_count"] == 4
+    assert result["checked_events"] == 3
+
+
+def test_audit_anchor_tampering_is_detected(tmp_path):
+    root = _workspace(tmp_path)
+    record_audit_event(
+        root,
+        actor_user_id=None,
+        tenant_key="TENANT_A",
+        action="ANCHOR_TEST",
+        outcome="SUCCESS",
+    )
+    anchor = root / "auth" / "audit_head_anchor.json"
+    payload = json.loads(anchor.read_text(encoding="utf-8"))
+    payload["event_count"] = int(payload["event_count"]) + 1
+    anchor.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = verify_audit_chain(root)
+    assert not result["valid"]
+    assert result["reason"] == "AUDIT_ANCHOR_MAC_MISMATCH"
