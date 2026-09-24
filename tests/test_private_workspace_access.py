@@ -657,6 +657,12 @@ def test_explicit_reanchor_records_reset_after_investigated_tail_loss(tmp_path):
         password="synthetic-long-password",
         iterations=100_000,
     )
+    grant_membership(
+        root,
+        user_id=user["user_id"],
+        tenant_key="TENANT_A",
+        role="ADMIN",
+    )
     record_audit_event(
         root,
         actor_user_id=user["user_id"],
@@ -753,3 +759,44 @@ def test_multiprocess_audit_appends_are_serialized(tmp_path):
             WHERE action='MULTIPROCESS_TEST'
             """
         ).fetchone()["n"] == 12
+
+
+def test_reanchor_requires_active_admin_actor(tmp_path):
+    root = _workspace(tmp_path)
+    user = create_user(
+        root,
+        username="reanchor-viewer",
+        password="synthetic-long-password",
+        iterations=100_000,
+    )
+    grant_membership(
+        root,
+        user_id=user["user_id"],
+        tenant_key="TENANT_A",
+        role="VIEWER",
+    )
+    record_audit_event(
+        root,
+        actor_user_id=user["user_id"],
+        tenant_key="TENANT_A",
+        action="TAIL_EVENT_FOR_REANCHOR_AUTH",
+        outcome="SUCCESS",
+    )
+    with connect_catalog(root) as conn:
+        conn.execute(
+            """
+            DELETE FROM workspace_audit_event
+            WHERE audit_event_id=(
+                SELECT max(audit_event_id)
+                FROM workspace_audit_event
+            )
+            """
+        )
+        conn.commit()
+
+    with pytest.raises(PermissionError, match="active ADMIN"):
+        reanchor_audit(
+            root,
+            actor_user_id=user["user_id"],
+            reason="viewer must not reset audit trust",
+        )
