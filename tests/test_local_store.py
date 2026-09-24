@@ -1,6 +1,9 @@
 import json
+import sqlite3
 import subprocess
 from pathlib import Path
+
+import pytest
 
 from clr.local_store import (
     canonical_tenant_key,
@@ -223,3 +226,21 @@ def test_custom_workspace_is_ignored_inside_an_unrelated_git_repo(tmp_path):
             cwd=repo,
         )
         assert result.returncode == 0, path
+
+
+def test_connect_catalog_context_manager_closes_handle(tmp_path):
+    root = tmp_path / "private_data"
+    initialize_workspace(root, schema_path())
+    conn = connect_catalog(root)
+    with conn as db:
+        assert db.execute("SELECT 1").fetchone()[0] == 1
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        conn.execute("SELECT 1")
+
+
+def test_connect_catalog_sets_busy_timeout(tmp_path):
+    root = tmp_path / "private_data"
+    initialize_workspace(root, schema_path())
+    with connect_catalog(root, busy_timeout_ms=1234) as conn:
+        value = conn.execute("PRAGMA busy_timeout").fetchone()[0]
+    assert value == 1234
