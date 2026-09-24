@@ -1,10 +1,22 @@
 from __future__ import annotations
 
+import math
 from typing import Any
 
 REQUIRED_INDICATOR_FIELDS = {
     "indicator_id", "value_class", "measurement_basis", "source_id", "source_vintage"
 }
+
+
+def _optional_nonnegative_int(value: Any, name: str) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    out = int(value)
+    if out < 0:
+        raise ValueError(f"{name} cannot be negative")
+    return out
 
 
 def _clean_indicator(row: dict[str, Any]) -> dict[str, Any]:
@@ -71,16 +83,27 @@ def portfolio_intelligence_report(
     missing_data_questions: list[str] | None = None,
 ) -> dict[str, Any]:
     """Build a bounded portfolio-level product payload."""
+    cleaned_metrics = []
     for metric in metrics:
         if "metric_id" not in metric or "value" not in metric:
             raise ValueError("Portfolio metrics require metric_id and value")
         if metric.get("classification") in {"EXPECTED_LOSS", "PREDICTED_PD", "PREDICTED_LGD"}:
             raise ValueError("Loss/PD/LGD outputs require a separately governed model, not the base product layer")
+        cleaned = dict(metric)
+        denominator = _optional_nonnegative_int(
+            metric.get("denominator_count"),
+            "denominator_count",
+        )
+        if str(metric.get("unit", "")).lower() == "share" and denominator is None:
+            raise ValueError("Portfolio share metrics require denominator_count")
+        if denominator is not None:
+            cleaned["denominator_count"] = denominator
+        cleaned_metrics.append(cleaned)
     return {
         "report_type": "PORTFOLIO_INTELLIGENCE",
         "schema_version": "0.1.0",
         "portfolio_id": portfolio_id,
-        "portfolio_metrics": metrics,
+        "portfolio_metrics": cleaned_metrics,
         "analytical_findings": findings or [],
         "evidence_panel": evidence or [],
         "what_data_would_change_the_answer": missing_data_questions or [],
@@ -116,15 +139,18 @@ def compound_intelligence_report(
         quality=metric.get("quality_flag","OK")
         if value is None and quality=="OK":
             raise ValueError("Null cross-asset metric requires a non-OK quality_flag")
-        denominator=metric.get("denominator")
-        if denominator is not None and int(denominator)<0:
-            raise ValueError("denominator cannot be negative")
+        denominator=_optional_nonnegative_int(
+            metric.get("denominator"),
+            "denominator",
+        )
+        if str(metric.get("unit","")).lower()=="share" and denominator is None:
+            raise ValueError("Share metrics require an explicit denominator")
         cleaned_metrics.append({
             "analysis_type":metric.get("analysis_type"),
             "metric_id":metric["metric_id"],
             "value":value,
             "unit":metric.get("unit"),
-            "denominator":None if denominator is None else int(denominator),
+            "denominator":denominator,
             "quality_flag":quality,
             "period_start":metric.get("period_start"),
             "period_end":metric.get("period_end"),
