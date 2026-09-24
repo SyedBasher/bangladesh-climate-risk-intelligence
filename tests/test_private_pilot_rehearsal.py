@@ -211,3 +211,37 @@ def test_rehearsal_detects_audit_tampering_before_backup(tmp_path):
 
     with pytest.raises(ValueError, match="preflight failed"):
         rehearse_backup_restore(root, repo_root=ROOT)
+
+
+def test_expired_stale_session_does_not_block_preflight(tmp_path):
+    root, user = _workspace(tmp_path)
+    token, session = create_session(
+        root,
+        user_id=user["user_id"],
+        tenant_key="TENANT_A",
+        role="ANALYST",
+        ttl_minutes=30,
+    )
+    assert token
+    with connect_catalog(root) as conn:
+        conn.execute(
+            """
+            UPDATE workspace_session
+            SET expires_at='2020-01-01T00:00:00+00:00'
+            WHERE session_id=?
+            """,
+            (session["session_id"],),
+        )
+        conn.execute(
+            """
+            UPDATE workspace_tenant_membership
+            SET role='VIEWER'
+            WHERE user_id=? AND tenant_key='TENANT_A'
+            """,
+            (user["user_id"],),
+        )
+        conn.commit()
+
+    result = preflight_private_pilot(root, repo_root=ROOT)
+    assert result["status"] == "PASS"
+    assert result["security_summary"]["orphan_or_stale_active_sessions"] == 0
