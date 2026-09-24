@@ -607,18 +607,67 @@ def _latest_indicator_lineage(
     return set() if not row or not row["source_artifact_id"] else {str(row["source_artifact_id"])}
 
 
-def _route_run_source_ids(root:str|Path,route_run_id:str)->set[str]:
+def _route_run_source_roles(root:str|Path,route_run_id:str)->dict[str,set[str]]:
+    out={"ROUTE_NETWORK_SOURCE":set(),"ROUTE_FLOOD_SOURCE":set()}
     with connect_catalog(root) as conn:
         rows=conn.execute(
             """
-            SELECT DISTINCT lras.source_artifact_id
+            SELECT DISTINCT lras.source_artifact_id,lras.source_role
             FROM logistics_route_analysis lra
             JOIN logistics_route_analysis_source lras
               ON lras.route_analysis_id=lra.route_analysis_id
             WHERE lra.run_id=?
             """,(route_run_id,)
         ).fetchall()
+    for row in rows:
+        role=(
+            "ROUTE_NETWORK_SOURCE"
+            if row["source_role"]=="OSM_PBF"
+            else "ROUTE_FLOOD_SOURCE"
+        )
+        out[role].add(str(row["source_artifact_id"]))
+    return out
+
+
+def _route_run_source_ids(root:str|Path,route_run_id:str)->set[str]:
+    roles=_route_run_source_roles(root,route_run_id)
+    return set().union(*roles.values())
+
+
+def run_indicator_source_ids(
+    root:str|Path,
+    *,
+    run_id:str|None,
+    indicator_ids:list[str],
+)->set[str]:
+    if run_id is None or not indicator_ids:
+        return set()
+    marks=",".join("?" for _ in indicator_ids)
+    sql=f"""
+        SELECT DISTINCT ais.source_artifact_id
+        FROM asset_indicator ai
+        JOIN asset_indicator_source ais
+          ON ais.asset_indicator_id=ai.asset_indicator_id
+        WHERE ai.run_id=?
+          AND ai.indicator_id IN ({marks})
+    """
+    with connect_catalog(root) as conn:
+        rows=conn.execute(
+            sql,(run_id,*indicator_ids)
+        ).fetchall()
     return {str(x["source_artifact_id"]) for x in rows}
+
+
+def site_flood_source_ids(
+    root:str|Path,
+    site_depths:pd.DataFrame,
+)->set[str]:
+    out=set()
+    if site_depths.empty or "asset_indicator_id" not in site_depths:
+        return out
+    for value in site_depths["asset_indicator_id"].dropna():
+        out.update(_latest_indicator_lineage(root,value))
+    return out
 
 
 def insert_flood_route_asset_indicators(
@@ -756,6 +805,84 @@ def _insert_cross_metric(
                 )
         conn.commit()
     return metric_id_pk
+
+
+def insert_cross_asset_summary(
+    root:str|Path,
+    summary:pd.DataFrame,
+    *,
+    tenant_key:str,
+    heat_meta:dict,
+    spi_meta:dict,
+    route_meta:dict,
+    site_depths:pd.DataFrame,
+    year:int,
+    return_period:int,
+    run_id:str,
+)->int:
+    heat_sources=set()
+    try:
+        _,heat_path=latest_parquet(
+            root,"era5_land_daily_temperature",
+            partition_filters={"year":year,"statistic":"daily_maximum"},
+            run_id=heat_meta.get("run_id"),
+        )
+        heat_frame=pd.read_parquet(heat_path,columns=["tenant_key","source_artifact_id"])
+        heat_sources=set(
+            heat_frame.loc[
+                heat_frame["tenant_key"]==tenant_key,
+                "source_artifact_id",
+            ].dropna().astype(str)
+        )
+    except Exception:
+        heat_sources=set()
+
+    drought_sources=run_indicator_source_ids(
+        root,run_id=spi_meta.get("run_id"),indicator_ids=["spi3","spi12"]
+    )
+    route_roles=_route_run_source_roles(
+        root,str(route_meta.get("run_id"))
+    )
+    site_sources=site_flood_source_ids(root,site_depths)
+
+    manifest=_dataset_manifest(heat_meta,spi_meta,route_meta)
+    count=0
+    for row in summary.to_dict(orient="records"):
+        analysis=row["analysis_type"]
+        if analysis=="HEAT_DROUGHT":
+            roles={
+                "HEAT_SOURCE":heat_sources,
+                "DROUGHT_SOURCE":drought_sources,
+            }
+            method=HEAT_DROUGHT_METHOD
+        elif analysis=="FLOOD_ROUTE":
+            roles={
+                "SITE_FLOOD_SOURCE":site_sources,
+                **route_roles,
+            }
+            method=FLOOD_ROUTE_METHOD
+        elif analysis=="SHARED_BOTTLENECK":
+            roles=route_roles
+            method=SHARED_BOTTLENECK_METHOD
+        else:
+            roles={}
+            method=CROSS_ASSET_METHOD
+
+        _insert_cross_metric(
+            root,tenant_key=tenant_key,
+            analysis_type=analysis,
+            metric_id=row["metric_id"],
+            value=row["value"],unit=row["unit"],
+            period_start=row.get("period_start"),
+            period_end=row.get("period_end"),
+            method_version=method,
+            quality_flag=row["quality_flag"],
+            input_manifest=manifest,
+            run_id=run_id,source_roles=roles,
+            denominator=row.get("denominator"),
+        )
+        count+=1
+    return count
 
 
 def write_compound_parquets(
