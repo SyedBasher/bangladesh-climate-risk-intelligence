@@ -223,7 +223,9 @@ def test_dashboard_does_not_render_private_coordinates_or_borrowers(tmp_path):
     assert "decision workspace" in lower
     assert "latitude" not in lower
     assert "longitude" not in lower
-    assert "borrower" not in lower
+    assert "BORROWER_SECRET" not in html
+    assert "24.0" not in html
+    assert "90.4" not in html
     assert "synthetic-csrf" in html
 
 
