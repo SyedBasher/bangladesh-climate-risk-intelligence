@@ -112,25 +112,35 @@ def heat_drought_monthly(
     for (asset_id,period),g in heat.groupby(["asset_location_id","period"]):
         p=pd.Period(period,freq="M")
         expected=calendar.monthrange(p.year,p.month)[1]
-        unique_days=g["date"].dt.date.nunique()
+        temp=pd.to_numeric(g["temp_c"],errors="coerce")
+        valid_temp=temp.notna()
+        valid_days=g.loc[valid_temp,"date"].dt.date.nunique()
         sources=sorted(set(g["source_artifact_id"].dropna().astype(str)))
         if len(sources)!=1:
             raise ValueError(
                 f"Heat month {asset_id}/{period} must have exactly one source artifact"
             )
         first=g.iloc[0]
+        monthly_max=temp.loc[valid_temp].max() if bool(valid_temp.any()) else None
         rows.append({
             "tenant_key":first["tenant_key"],
             "asset_location_id":asset_id,
             "external_id":first["external_id"],
             "period":period,
-            "heat_day_count":int(unique_days),
+            "heat_day_count":int(valid_days),
             "expected_day_count":int(expected),
-            "days_tmax_gt_35c":int((g["temp_c"].astype(float)>35.0).sum()),
-            "days_tmax_gt_38c":int((g["temp_c"].astype(float)>38.0).sum()),
-            "monthly_max_tmax_c":float(g["temp_c"].astype(float).max()),
+            "days_tmax_gt_35c":int(
+                g.loc[temp.gt(35.0),"date"].dt.date.nunique()
+            ),
+            "days_tmax_gt_38c":int(
+                g.loc[temp.gt(38.0),"date"].dt.date.nunique()
+            ),
+            "monthly_max_tmax_c":(
+                None if monthly_max is None or pd.isna(monthly_max)
+                else float(monthly_max)
+            ),
             "heat_source_artifact_id":sources[0],
-            "heat_quality_flag":"OK" if unique_days==expected else "INCOMPLETE_HEAT_MONTH",
+            "heat_quality_flag":"OK" if valid_days==expected else "INCOMPLETE_HEAT_MONTH",
         })
     heat_monthly=pd.DataFrame(rows)
 
@@ -405,6 +415,7 @@ def cross_asset_summary(
     *,
     year:int,
     return_period:int=100,
+    shared_edge_evidence_available:bool=True,
 )->pd.DataFrame:
     rows=[]
     if not heat_annual.empty:
@@ -460,7 +471,12 @@ def cross_asset_summary(
             },
         ])
 
-    if shared_edges.empty:
+    shared_quality="OK" if shared_edge_evidence_available else "NO_ROUTE_EDGE_EVIDENCE"
+    if not shared_edge_evidence_available:
+        shared_edge_count=None
+        affected_assets=None
+        max_assets=None
+    elif shared_edges.empty:
         shared_edge_count=0
         affected_assets=0
         max_assets=0
@@ -475,22 +491,25 @@ def cross_asset_summary(
         {
             "analysis_type":"SHARED_BOTTLENECK",
             "metric_id":f"rp{return_period}_shared_flood_exposed_edge_count",
-            "value":float(shared_edge_count),"unit":"edges",
-            "denominator":None,"quality_flag":"OK",
+            "value":None if shared_edge_count is None else float(shared_edge_count),
+            "unit":"edges",
+            "denominator":None,"quality_flag":shared_quality,
             "period_start":None,"period_end":None,
         },
         {
             "analysis_type":"SHARED_BOTTLENECK",
             "metric_id":f"rp{return_period}_assets_using_shared_flood_exposed_edges_count",
-            "value":float(affected_assets),"unit":"assets",
-            "denominator":None,"quality_flag":"OK",
+            "value":None if affected_assets is None else float(affected_assets),
+            "unit":"assets",
+            "denominator":None,"quality_flag":shared_quality,
             "period_start":None,"period_end":None,
         },
         {
             "analysis_type":"SHARED_BOTTLENECK",
             "metric_id":f"rp{return_period}_max_assets_on_single_flood_exposed_edge",
-            "value":float(max_assets),"unit":"assets",
-            "denominator":None,"quality_flag":"OK",
+            "value":None if max_assets is None else float(max_assets),
+            "unit":"assets",
+            "denominator":None,"quality_flag":shared_quality,
             "period_start":None,"period_end":None,
         },
     ])
@@ -786,8 +805,14 @@ def _insert_cross_metric(
     value_numeric=None if value is None or pd.isna(value) else float(value)
     null_reason=None if value_numeric is not None else quality_flag
     manifest=dict(input_manifest)
-    if denominator is not None:
-        manifest["denominator"]=int(denominator)
+    denominator_value=(
+        None if denominator is None or pd.isna(denominator)
+        else int(denominator)
+    )
+    if denominator_value is not None:
+        if denominator_value<0:
+            raise ValueError("denominator cannot be negative")
+        manifest["denominator"]=denominator_value
     with connect_catalog(root) as conn:
         conn.execute(
             """
@@ -833,27 +858,35 @@ def insert_cross_asset_summary(
     return_period:int,
     run_id:str,
 )->int:
-    heat_sources=set()
-    try:
-        _,heat_path=latest_parquet(
-            root,"era5_land_daily_temperature",
-            partition_filters={"year":year,"statistic":"daily_maximum"},
-            run_id=heat_meta.get("run_id"),
-        )
-        heat_frame=pd.read_parquet(heat_path,columns=["tenant_key","source_artifact_id"])
-        heat_sources=set(
-            heat_frame.loc[
-                heat_frame["tenant_key"]==tenant_key,
-                "source_artifact_id",
-            ].dropna().astype(str)
-        )
-    except Exception:
-        heat_sources=set()
+    _,heat_path=latest_parquet(
+        root,"era5_land_daily_temperature",
+        partition_filters={"year":year,"statistic":"daily_maximum"},
+        run_id=heat_meta.get("run_id"),
+    )
+    heat_frame=pd.read_parquet(
+        heat_path,
+        columns=["tenant_key","source_artifact_id"],
+    )
+    heat_sources=set(
+        heat_frame.loc[
+            heat_frame["tenant_key"]==tenant_key,
+            "source_artifact_id",
+        ].dropna().astype(str)
+    )
 
     drought_sources=run_indicator_source_ids(
         root,run_id=spi_meta.get("run_id"),
         indicator_ids=["spi3","spi12"],tenant_key=tenant_key
     )
+    if bool((summary["analysis_type"]=="HEAT_DROUGHT").any()):
+        if not heat_sources:
+            raise ValueError(
+                f"Heat lineage unavailable for tenant {tenant_key}"
+            )
+        if not drought_sources:
+            raise ValueError(
+                f"Drought lineage unavailable for tenant {tenant_key}"
+            )
     route_roles=_route_run_source_roles(
         root,str(route_meta.get("run_id"))
     )
