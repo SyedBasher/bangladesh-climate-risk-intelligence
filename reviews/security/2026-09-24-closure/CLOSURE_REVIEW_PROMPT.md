@@ -27,11 +27,13 @@ If DeepSeek cannot determine an item from the supplied bundle, give it the missi
 
 ## Repository checkpoint
 
-Expected current `main`:
+Security-code baseline to verify:
 
 `23ee198ad2c6897d8fcc5ea451f3add91f4b2ea8`
 
-First run:
+This SHA is the merge of PR #31 and contains the security/analytical implementation that the closure audit must assess.
+
+The review-pack documentation may be merged after that SHA. Therefore first run:
 
 ```bash
 git fetch --all --prune
@@ -39,9 +41,15 @@ git checkout main
 git pull --ff-only
 git rev-parse HEAD
 git status --porcelain
+git merge-base --is-ancestor 23ee198ad2c6897d8fcc5ea451f3add91f4b2ea8 HEAD
+git diff --name-only 23ee198ad2c6897d8fcc5ea451f3add91f4b2ea8..HEAD
 ```
 
-If the remote SHA does not match the expected SHA, stop and state the discrepancy before reviewing.
+Proceed only if:
+- `23ee198a...` is an ancestor of current `main`; and
+- every change after that baseline is confined to the closure-review pack/documentation.
+
+If implementation code, deployment configuration, tests or migrations changed after the baseline, stop and state the discrepancy before reviewing.
 
 The two remediation checkpoints to verify are:
 
@@ -319,13 +327,15 @@ Record in the final report:
 
 ## Required report
 
-Save the complete final report as:
+Write the complete final report locally as:
 
 `reviews/security/2026-09-24-closure/CLOSURE_REAUDIT_REPORT.md`
 
 Use the structure in `REPORT_TEMPLATE.md`.
 
 Do not merely print the report to the terminal. Write the Markdown file.
+
+**Do not push or commit the completed report yet.** Return it to the project owner for review first. If it contains a newly demonstrated unresolved Critical, High or Medium vulnerability, remediate that issue before publishing the report in the public repository.
 
 The final report must include:
 - exact reviewed SHA;
