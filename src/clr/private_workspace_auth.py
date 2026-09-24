@@ -89,13 +89,14 @@ def set_workspace_password(
     except OSError:
         pass
 
+    # Rotate the signing secret whenever the password changes so all
+    # previously issued sessions are immediately invalidated.
     secret_path = session_secret_path(root)
-    if not secret_path.exists():
-        secret_path.write_bytes(secrets.token_bytes(32))
-        try:
-            secret_path.chmod(0o600)
-        except OSError:
-            pass
+    secret_path.write_bytes(secrets.token_bytes(32))
+    try:
+        secret_path.chmod(0o600)
+    except OSError:
+        pass
 
     return {
         "credential_path": path.relative_to(root).as_posix(),
