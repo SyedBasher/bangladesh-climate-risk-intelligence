@@ -20,6 +20,7 @@ from .product_output import (
 
 _SAFE_PART = re.compile(r"[^A-Za-z0-9._=-]+")
 _FINANCIAL_EXPOSURE_TYPES = ("EAD", "COLLATERAL_VALUE", "SUM_INSURED")
+MAX_INDICATOR_RUNS = 64
 
 
 def _safe_part(value: Any) -> str:
@@ -68,6 +69,10 @@ def _require_runs(conn, run_ids: Iterable[str]) -> list[dict[str, Any]]:
     ids = [str(x).strip() for x in run_ids if str(x).strip()]
     if not ids:
         raise ValueError("At least one explicit indicator run ID is required")
+    if len(ids) > MAX_INDICATOR_RUNS:
+        raise ValueError(
+            f"No more than {MAX_INDICATOR_RUNS} indicator runs may be selected"
+        )
     if len(set(ids)) != len(ids):
         raise ValueError("Duplicate run IDs are not allowed")
     return [_require_successful_run(conn, run_id) for run_id in ids]
