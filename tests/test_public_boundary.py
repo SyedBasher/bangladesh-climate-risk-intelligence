@@ -1,5 +1,8 @@
+import fnmatch
+import subprocess
 from pathlib import Path
 
+from clr.local_store import WORKSPACE_DIRS
 from clr.public_boundary import boundary_violations, tracked_files
 
 
@@ -75,3 +78,78 @@ def test_dockerignore_excludes_private_workspace_and_recovery_artifacts():
     ]
     for item in required:
         assert item in dockerignore
+
+
+def _docker_patterns():
+    return [
+        line.strip()
+        for line in (ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+
+
+def test_boundary_guard_tracks_every_canonical_workspace_directory():
+    candidates = [
+        f"pilot/{rel.strip('/')}/synthetic-private.txt"
+        for rel in WORKSPACE_DIRS
+    ]
+    assert boundary_violations(candidates) == sorted(candidates)
+
+
+def test_gitignore_behaviour_covers_custom_root_workspace_layout():
+    for rel in WORKSPACE_DIRS:
+        candidate = f"pilot/{rel.strip('/')}/synthetic-private.txt"
+        result = subprocess.run(
+            [
+                "git",
+                "check-ignore",
+                "--no-index",
+                "-q",
+                "--",
+                candidate,
+            ],
+            cwd=ROOT,
+            check=False,
+        )
+        assert result.returncode == 0, candidate
+
+
+def test_gitignore_has_no_blank_rule_trap_and_auth_is_explicitly_ignored():
+    lines = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert all(line.strip() for line in lines)
+    result = subprocess.run(
+        [
+            "git",
+            "check-ignore",
+            "--no-index",
+            "-v",
+            "--",
+            "pilot/auth/synthetic.json",
+        ],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "**/auth/" in result.stdout
+    assert ":\t" not in result.stdout
+
+
+def test_dockerignore_behaviour_covers_custom_root_workspace_layout():
+    patterns = _docker_patterns()
+    candidates = [
+        "pilot/auth/private.json",
+        "pilot/catalog/private.json",
+        "pilot/raw/era5_land/private.json",
+        "pilot/normalized/assets/private.json",
+        "pilot/indicators/asset/private.json",
+        "pilot/manifests/plans/private.json",
+        "pilot/outputs/reports/private.html",
+        "pilot/tmp/private.json",
+        "pilot/backups/recovery/private.json",
+    ]
+    for candidate in candidates:
+        assert any(
+            fnmatch.fnmatchcase(candidate, pattern)
+            for pattern in patterns
+        ), candidate

@@ -1076,6 +1076,12 @@ def set_user_password(
     root = _private_root(root)
     if len(password) < 12:
         raise ValueError("Password must contain at least 12 characters")
+    if len(password) > MAX_PASSWORD_CHARS:
+        raise ValueError(
+            f"Password cannot exceed {MAX_PASSWORD_CHARS} characters"
+        )
+    if iterations < 100_000:
+        raise ValueError("PBKDF2 iterations must be at least 100000")
     salt = secrets.token_bytes(16)
     digest = _password_digest(password, salt, iterations)
     now = utc_now()

@@ -52,7 +52,7 @@ The private workspace root defaults to `CLR_PRIVATE_DATA`, then to `private_data
 
 ## Explicit run selection
 
-At least one `--indicator-run` is required.
+At least one `--indicator-run` is required, and no more than **64** explicit indicator runs may be selected in one report build. The same cap is enforced by the private pilot HTTP layer.
 
 Every selected run must:
 

@@ -596,6 +596,9 @@ def validate_deployment_examples(repo_root: str | Path) -> dict[str, Any]:
         "service_fd_limit": "LimitNOFILE=" in service,
         "service_address_families": "RestrictAddressFamilies=" in service,
         "service_protect_proc": "ProtectProc=invisible" in service,
+        "service_login_global_ceiling": (
+            "Environment=CLR_LOGIN_GLOBAL_ATTEMPTS=20" in service
+        ),
     }
     return {
         "checks": checks,

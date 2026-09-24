@@ -800,3 +800,32 @@ def test_reanchor_requires_active_admin_actor(tmp_path):
             actor_user_id=user["user_id"],
             reason="viewer must not reset audit trust",
         )
+
+
+def test_password_reset_rejects_overlong_password_without_changing_account(tmp_path):
+    root = _workspace(tmp_path)
+    user = create_user(
+        root,
+        username="password-bound-user",
+        password="synthetic-long-password",
+        iterations=100_000,
+    )
+    grant_membership(
+        root,
+        user_id=user["user_id"],
+        tenant_key="TENANT_A",
+        role="VIEWER",
+    )
+    with pytest.raises(ValueError, match="cannot exceed"):
+        set_user_password(
+            root,
+            user_id=user["user_id"],
+            password="Z" * (access_module.MAX_PASSWORD_CHARS + 1),
+            iterations=100_000,
+        )
+    assert authenticate_user(
+        root,
+        username="password-bound-user",
+        password="synthetic-long-password",
+        tenant_key="TENANT_A",
+    ) is not None

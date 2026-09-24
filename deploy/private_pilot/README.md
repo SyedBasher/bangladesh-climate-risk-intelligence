@@ -65,9 +65,27 @@ Adapt paths to the actual host. Do not make the repository or system directories
 
 ## Login rate limiting
 
-The application has bounded in-process throttling to protect PBKDF2 and audit storage during the small single-process pilot.
+The repository ships with:
 
-On the real host, also configure rate limiting at the reverse proxy or upstream network layer before inviting outside users. Infrastructure-level limits remain necessary because an in-process limiter does not coordinate across multiple application processes or hosts.
+```text
+CLR_LOGIN_GLOBAL_ATTEMPTS=20
+```
+
+which means at most 20 expensive password checks per 60-second process window. This is deliberately conservative for the small pilot and replaces the earlier 120/minute ceiling.
+
+Before inviting outside users, benchmark the actual host:
+
+```bash
+python scripts/benchmark_private_pilot_auth.py \
+  --vcpus <HOST_VCPU_COUNT> \
+  --target-cpu-share 0.10
+```
+
+The command measures the project's current PBKDF2 iteration count using synthetic inputs and reports a recommended global attempts/minute ceiling for the specified CPU budget.
+
+If the recommended value is below 20, lower `CLR_LOGIN_GLOBAL_ATTEMPTS` in the deployed systemd unit. Do not increase the shipped value merely because the benchmark allows it unless the pilot's traffic and infrastructure controls justify the change.
+
+The in-process limiter is appropriate for the current single-process private pilot. On the real host, also configure rate limiting at the reverse proxy or upstream network layer before inviting outside users. Infrastructure-level limits remain necessary because an in-process limiter does not coordinate across multiple application processes or hosts.
 
 ## Firewall
 

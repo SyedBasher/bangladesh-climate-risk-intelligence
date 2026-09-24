@@ -26,6 +26,17 @@ artifacts/**
 cache
 cache/**
 
+# Private workspace layout at any custom root.
+**/auth/**
+**/catalog/**
+**/raw/**
+**/normalized/**
+**/indicators/**
+**/manifests/**
+**/outputs/**
+**/tmp/**
+**/backups/**
+
 **/.private-data-root
 **/workspace_auth.json
 **/audit_chain_secret.bin

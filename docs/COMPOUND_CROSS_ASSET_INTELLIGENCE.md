@@ -47,6 +47,8 @@ The annual outputs are:
 
 If any month required for a scale is incomplete, including a calendar day whose temperature value is missing, the corresponding annual metric is null rather than extrapolated.
 
+If a month contains **no valid temperature observations at all**, the monthly >35°C and >38°C day counts are also null rather than zero. The row remains flagged `INCOMPLETE_HEAT_MONTH`; absence of observations is not represented as absence of hot days.
+
 ## 2. What heat–drought co-occurrence does not mean
 
 The calculation establishes temporal co-occurrence of two environmental conditions.
@@ -117,6 +119,8 @@ An empty shared-edge result has two distinct meanings and they are not collapsed
 - when no tenant route-edge evidence is available, shared-bottleneck metrics are null with quality `NO_ROUTE_EDGE_EVIDENCE`.
 
 Missing route-edge evidence is therefore not treated as zero shared exposure.
+
+The summary function requires the caller to state route-edge evidence availability explicitly; there is no optimistic default that can silently turn an empty evidence frame into a valid zero.
 
 ## 5. Cross-asset summaries
 

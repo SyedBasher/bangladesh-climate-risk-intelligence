@@ -169,7 +169,14 @@ def test_cross_asset_summary_uses_explicit_denominators():
         {"asset_keys":"S:A;S:B","distinct_asset_count":2},
         {"asset_keys":"S:B;S:C","distinct_asset_count":2},
     ])
-    out=cross_asset_summary(heat,flood,edges,year=2025,return_period=100)
+    out=cross_asset_summary(
+        heat,
+        flood,
+        edges,
+        year=2025,
+        return_period=100,
+        shared_edge_evidence_available=True,
+    )
     spi3=out[out["metric_id"]=="asset_share_with_heat_spi3_cooccurrence"].iloc[0]
     assert spi3["value"]==0.5
     assert spi3["denominator"]==2
@@ -333,3 +340,27 @@ def test_heat_lineage_read_failure_propagates(tmp_path,monkeypatch):
             return_period=100,
             run_id="COMPOUND_RUN",
         )
+
+
+def test_cross_asset_summary_requires_explicit_shared_edge_evidence_state():
+    with pytest.raises(TypeError):
+        cross_asset_summary(
+            pd.DataFrame(),
+            pd.DataFrame(),
+            pd.DataFrame(),
+            year=2025,
+            return_period=100,
+        )
+
+
+def test_all_null_heat_month_does_not_publish_zero_hot_day_counts():
+    daily=_daily_heat()
+    mask=daily["date"].str.startswith("2025-03-")
+    daily.loc[mask,"temp_c"]=float("nan")
+    monthly=heat_drought_monthly(daily,_spi(),year=2025)
+    march=monthly[monthly["period"]=="2025-03"].iloc[0]
+    assert march["heat_day_count"]==0
+    assert march["heat_quality_flag"]=="INCOMPLETE_HEAT_MONTH"
+    assert pd.isna(march["days_tmax_gt_35c"])
+    assert pd.isna(march["days_tmax_gt_38c"])
+    assert pd.isna(march["monthly_max_tmax_c"])

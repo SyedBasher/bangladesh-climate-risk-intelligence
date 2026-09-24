@@ -8,7 +8,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from clr.private_workspace_pilot_app import serve_private_pilot
+from clr.private_workspace_pilot_app import (
+    DEFAULT_LOGIN_GLOBAL_ATTEMPTS,
+    serve_private_pilot,
+)
 
 
 def main() -> None:
@@ -23,6 +26,20 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8766)
     parser.add_argument("--session-minutes", type=int, default=60)
     parser.add_argument(
+        "--login-global-attempts",
+        type=int,
+        default=int(
+            os.getenv(
+                "CLR_LOGIN_GLOBAL_ATTEMPTS",
+                str(DEFAULT_LOGIN_GLOBAL_ATTEMPTS),
+            )
+        ),
+        help=(
+            "Maximum expensive login attempts per 60-second process window. "
+            "Calibrate on the deployed host."
+        ),
+    )
+    parser.add_argument(
         "--allow-insecure-cookie",
         action="store_true",
         help="Local test only. Hosted pilot cookies should remain Secure.",
@@ -34,6 +51,7 @@ def main() -> None:
         port=args.port,
         session_minutes=args.session_minutes,
         secure_cookie=not args.allow_insecure_cookie,
+        login_global_attempts=args.login_global_attempts,
     )
 
 

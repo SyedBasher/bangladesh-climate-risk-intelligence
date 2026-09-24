@@ -14,6 +14,7 @@ from clr.local_store import (
     utc_now,
 )
 from clr.private_decision_workspace import (
+    MAX_INDICATOR_RUNS,
     build_and_write_private_decision_workspace,
     build_private_decision_workspace,
 )
@@ -459,3 +460,19 @@ def test_decision_adapter_rejects_path_like_tenant_scope(tmp_path):
                 indicator_run_ids=[indicator_run],
                 asset_location_id=assets["A"]["asset_location_id"],
             )
+
+
+def test_adapter_caps_indicator_run_fanout_before_database_lookup(tmp_path):
+    root, _, assets = _workspace(tmp_path)
+    too_many = [
+        f"synthetic-run-{index}"
+        for index in range(MAX_INDICATOR_RUNS + 1)
+    ]
+    with pytest.raises(ValueError, match="No more than 64 indicator runs"):
+        build_private_decision_workspace(
+            root,
+            scope_type="ASSET",
+            tenant_key="INTERNAL",
+            indicator_run_ids=too_many,
+            asset_location_id=assets["A"]["asset_location_id"],
+        )
