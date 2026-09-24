@@ -33,4 +33,5 @@ def test_public_index_marks_decision_reports_current():
     assert "Decision Reports &amp; Portfolio Workspace" in text
     assert "Current product layer" in text
     assert "examples/synthetic/decision_workspace_demo.html" in text
-    assert "Private authenticated workspace: local-only shell" in text\n    assert "hosted private pilot &amp; access-control hardening" in text
+    assert "Private authenticated workspace: local-only shell" in text
+    assert "hosted private pilot &amp; access-control hardening" in text
