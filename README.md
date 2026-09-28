@@ -6,30 +6,44 @@ The project is designed to connect geocoded assets with transparent hazard, expo
 
 ## Operating architecture
 
+The project is moving to a public-shell/private-core architecture.
+
 ```
 PUBLIC GITHUB
-code + parsers + tests + schemas + methodology + CI
+product overview + methodology + source catalogue + selected public
+schemas/contracts + synthetic examples + public documentation
         |
         v
-PRIVATE LOCAL DATA
-SQLite + Parquet + raw source snapshots
+PRIVATE CORE REPOSITORY
+analytical engine + ingestion/parsers + SQL/migrations + private tests
++ authentication/tenant logic + deployment/recovery implementation
         |
-        v later
-HOSTED DATABASE
-Supabase / Neon / another PostgreSQL provider
+        v
+PRIVATE DATA
+SQLite + Parquet + raw source snapshots / rasters + real assets
++ tenant/user records + generated reports + encrypted backups
+        |
+        v
+PRIVATE HOST
+climate.mangroveintel.com
 ```
 
-The current operational data layer is local/private. Hosted PostgreSQL is a later deployment step, not a prerequisite.
+Automatic GitHub Actions are disabled for this public repository. The checked-in workflow is manual-only. Core tests and security/boundary checks will run locally before deployment.
 
-## What is public here
+The repository split is being performed conservatively: the complete current engine will first be copied to and verified in the private core repository. Only after that verification will proprietary engine/SQL/deployment internals be removed from the public branch.
 
-- processing and analytical code
-- input/output schemas
-- source-adapter logic
-- geocoding and QA rules
-- flood, rainfall, heat, terrain, logistics, and portfolio methods
-- research-governance methodology
-- synthetic examples and automated tests
+See `docs/REPOSITORY_SPLIT_PLAN.md`.
+
+## What will remain public
+
+- product description and public-facing documentation
+- methodology and research-governance principles
+- data-source catalogue and provenance approach
+- selected safe schemas/contracts and indicator definitions
+- synthetic examples suitable for public demonstration
+- public website/demo shell where useful
+
+During the migration, the current repository may still temporarily contain engine code that predates the split.
 
 ## What is **not** in this repository
 
