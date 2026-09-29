@@ -1,89 +1,41 @@
-# Private/raw/derived data
-private_data/
-local_data/
-data/
-raw/
-processed/
-private/
-customer_data/
-source_snapshots/
-outputs/
-build/
-cache/
-artifacts/
-backups/
-# Geospatial / database binaries
+# Secrets
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+# Databases and analytical data
+*.sqlite
+*.sqlite3
 *.db
 *.db-wal
 *.db-shm
-*.sqlite
-*.sqlite-wal
-*.sqlite-shm
-*.sqlite3
-*.duckdb
 *.parquet
 *.feather
-*.pbf
+*.arrow
+*.duckdb
 *.tif
 *.tiff
 *.nc
 *.grib
 *.grib2
-*.zarr
-*.gpkg
-*.shp
-*.shx
-*.dbf
-*.vrt
-*.zip
+*.pbf
 *.clrbackup
-# Secrets and credentials
-.env
-.env.*
-!.env.example
-*.pem
-*.key
-credentials*
-secrets*
-.cdsapirc
-# Python/tooling
+# Private/local workspaces
+private_data/
+local_data/
+data/
+raw/
+processed/
+backups/
+outputs/
+customer_data/
+source_snapshots/
+# Python/local tooling
 __pycache__/
-*.py[cod]
+*.pyc
 .pytest_cache/
 .venv/
 venv/
-.coverage
-htmlcov/
-# OS/editor
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
-# Private workspace layout at any custom root.
-**/auth/
-**/catalog/
-**/raw/
-**/normalized/
-**/indicators/
-**/manifests/
-**/outputs/
-**/backups/
-**/tmp/
-# Private workspace artifacts even under a custom in-repository root.
-# Initialized workspaces also create their own root .gitignore.
-**/.private-data-root
-**/workspace_auth.json
-**/audit_chain_secret.bin
-**/audit_head_anchor.json
-**/audit_head_anchor.pending.json
-**/audit_append.lock
-**/session_secret.bin
-**/outputs/reports/
-**/outputs/qa/
-**/backups/catalog/
-**/backups/recovery/
-**/manifests/source_vintages/
-**/manifests/plans/
-**/normalized/
-**/indicators/
-**/tmp/clr-restore-rehearsal-*/

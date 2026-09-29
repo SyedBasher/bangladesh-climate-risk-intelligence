@@ -1,32 +1,33 @@
 # Public repository data boundary
 
-This repository is intentionally code-first.
+This repository is the public information and methodology layer for Bangladesh Climate & Location Risk Intelligence.
 
-## Allowed in GitHub
-- source code
-- schemas and empty templates
-- methodological documentation
-- public-source endpoint definitions
-- synthetic QA fixtures
-- tests and CI configuration
+## Allowed here
 
-## Never commit
-- real asset/factory coordinates or geocoding evidence tables
-- DIFE/EPB/BGMEA/other compiled establishment databases
-- customer bank/insurance/portfolio data
-- source rasters, PBFs, NetCDF/GRIB, Parquet or database files
-- private source snapshots or historical crawls
-- generated customer/production outputs
-- secrets or credentials
+- product description and public website/demo material;
+- high-level methodology and research-governance documentation;
+- public source catalogue;
+- selected public-safe schemas/contracts;
+- synthetic demonstrations;
+- privacy and geocoding principles.
+
+## Not allowed here
+
+- analytical engine or proprietary implementation modules;
+- SQL migrations or operational database code;
+- authentication, tenant, deployment, recovery or audit implementation;
+- real asset/factory coordinates or compiled establishment databases;
+- customer bank/insurance/portfolio records;
+- SQLite, Parquet, rasters, PBF, NetCDF/GRIB or raw source archives;
+- private source snapshots;
+- generated customer/production outputs;
+- tenant/user/session/audit state;
+- credentials, tokens, keys or secret-bearing configuration.
 
 ## Separation principle
-GitHub stores the software and public methodology. Private infrastructure stores source data, curated databases, customer overlays, and production intelligence.
 
+Public GitHub explains the product and methodology.
 
-## Derived workspace guards
+The private core contains the deployable engine.
 
-The second-line public-boundary checker derives private directory fragments from `local_store.WORKSPACE_DIRS` rather than maintaining a separate copy of the workspace layout.
-
-The repository-level `.gitignore` and `.dockerignore` also protect private workspace subtrees under arbitrary custom roots, including `auth`, `catalog`, `raw`, `normalized`, `indicators`, `manifests`, `outputs`, `tmp` and `backups`.
-
-Every initialized private workspace still creates its own root `.gitignore` containing `*`; that remains the load-bearing protection if the workspace lives inside a larger Git checkout.
+Private infrastructure contains real data and customer intelligence.
