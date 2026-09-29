@@ -129,4 +129,4 @@ Recommended order:
 
 Version 0.1 does not auto-write executive conclusions. A non-missing-data summary statement must carry source references so the presentation layer cannot invent support.
 
-See `docs/DECISION_REPORTS_PORTFOLIO_WORKSPACE.md`.
+Detailed decision-workspace implementation is maintained in the private core.
